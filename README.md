@@ -112,4 +112,5 @@ python scripts/evaluate_7500.py
 3. [Phân Tích Định Dạng Đem Lại FPS Cao Nhất Trên Orange Pi 5 (`RK3588S`)](reports/03_orangepi5_format_fps_analysis.md)
 4. [Chiến Lược Khai Thác Tối Đa Phần Cứng Orange Pi 5 (`RK3588S`) Cho Mô Hình Hiện Tại](reports/04_orangepi5_max_hardware_utilization_report.md)
 5. [Báo Cáo Thực Nghiệm Before vs After Tối Ưu Inference Trên Orange Pi 5 (`5,000` val2017 + C++ Zero-Copy/RGA/3-Core NPU)](reports/05_orangepi5_before_after_optimization_report.md)
-6. [Benchmark Report Tổng hợp (Chuẩn Hackathon)](benchmark_report.md)
+6. [Giải Phẫu & Bóc Tách Toàn Bộ Thành Phần Cấu Tạo Nên Latency Trên Orange Pi 5](reports/06_latency_anatomy_and_component_breakdown.md)
+7. [Benchmark Report Tổng hợp (Chuẩn Hackathon)](benchmark_report.md)

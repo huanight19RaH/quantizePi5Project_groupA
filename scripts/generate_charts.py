@@ -363,6 +363,140 @@ def plot_orangepi5_before_after(
     plt.close(fig)
 
 
+def plot_latency_anatomy(anat_json: Path, lat_csv: Path, out_path: Path) -> None:
+    """Plot micro-level Latency Anatomy across ORT CPU operators, RKNN NPU modules, and 480p->1080p preproc components."""
+    import re
+    anat = json.loads(anat_json.read_text(encoding="utf-8"))
+    op5_dir = anat_json.parent
+    pd_lines = (op5_dir / "pd_uncut_normal.txt").read_text(encoding="utf-8", errors="replace").splitlines()
+    cpp_lines = (op5_dir / "cpp_microbench_log.txt").read_text(encoding="utf-8", errors="replace").splitlines()
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(17.5, 5.6), dpi=160)
+
+    # Panel 1: ONNX CPU Module Bottleneck (FP32 vs INT8 Static) vs RKNN NPU Module Breakdown
+    fp_mod = anat["ort_profiling"]["onnx_fp32"]["by_module_ms"]
+    i8_mod = anat["ort_profiling"]["onnx_int8_static"]["by_module_ms"]
+
+    mod_us = {"Stem M0-M2": 0, "Backbone M3-M9": 0, "C2PSA M10+M22": 0, "Neck M11-M21": 0, "Head Conv6H": 0, "Tail Cut": 0}
+    for ln in pd_lines:
+        m = re.match(r"^(\d+)\s+\S+\s+\S+\s+(?:NPU|CPU)\s+.*?\s+(?:\d+/\d+/\d+|0/0/0)\s+(\d+)\s+.*?(\S+:\S+.*)$", ln)
+        if not m:
+            continue
+        us, fn = int(m.group(2)), m.group(3)
+        if any(k in fn for k in ["/model.0/", "/model.1/", "/model.2/"]):
+            mod_us["Stem M0-M2"] += us
+        elif any(f"/model.{i}/" in fn for i in range(3, 10)):
+            mod_us["Backbone M3-M9"] += us
+        elif "/model.10/" in fn or "/model.22/" in fn:
+            mod_us["C2PSA M10+M22"] += us
+        elif any(f"/model.{i}/" in fn for i in range(11, 22)):
+            mod_us["Neck M11-M21"] += us
+        elif "/model.23/cv" in fn:
+            mod_us["Head Conv6H"] += us
+        elif "/model.23/" in fn or "output0-rs" in fn:
+            mod_us["Tail Cut"] += us
+
+    labels1 = ["ONNX FP32\nCPU (ORT)", "ONNX INT8\nCPU (ORT)", "RKNN INT8\nNPU (Uncut*)", "RKNN INT8\nNPU (6Head*)"]
+    stem_v = [fp_mod["Stem_M0_M2_FP32_Protected"], i8_mod["Stem_M0_M2_FP32_Protected"], mod_us["Stem M0-M2"] / 1000.0, mod_us["Stem M0-M2"] / 1000.0]
+    back_v = [fp_mod["Backbone_M3_M9"], i8_mod["Backbone_M3_M9"], mod_us["Backbone M3-M9"] / 1000.0, mod_us["Backbone M3-M9"] / 1000.0]
+    attn_v = [fp_mod["C2PSA_Attention_M10"], i8_mod["C2PSA_Attention_M10"], mod_us["C2PSA M10+M22"] / 1000.0, mod_us["C2PSA M10+M22"] / 1000.0]
+    neck_v = [fp_mod["Neck_FPN_PAN_M11_M22"], i8_mod["Neck_FPN_PAN_M11_M22"], mod_us["Neck M11-M21"] / 1000.0, mod_us["Neck M11-M21"] / 1000.0]
+    head_v = [fp_mod["Head_DFL_M23_FP32"], i8_mod["Head_DFL_M23_FP32"], mod_us["Head Conv6H"] / 1000.0, mod_us["Head Conv6H"] / 1000.0]
+    misc_v = [0.0, i8_mod.get("Graph_Fused_OR_IO", 0.0), mod_us["Tail Cut"] / 1000.0, 0.0]
+
+    x1 = np.arange(4)
+    comps = [
+        ("Stem M0-M2 (Protected FP32 in ORT)", stem_v, "#e11d48"),
+        ("Backbone M3-M9", back_v, "#2563eb"),
+        ("C2PSA Attention (M10 / M10+M22)", attn_v, "#8b5cf6"),
+        ("Neck FPN-PAN", neck_v, "#0ea5e9"),
+        ("Head M23 (Conv + DFL / 6Head)", head_v, "#f59e0b"),
+        ("Q/DQ ORT Tax / Cut Head Tail", misc_v, "#64748b"),
+    ]
+    bottom = np.zeros(4)
+    for clbl, vals, ccol in comps:
+        arr = np.array(vals)
+        ax1.bar(x1, arr, bottom=bottom, label=clbl, color=ccol, width=0.58)
+        bottom += arr
+    for i, tot in enumerate(bottom):
+        ax1.text(i, tot + 0.7, f"{tot:.2f} ms", ha="center", va="bottom", fontsize=8.0, fontweight="bold")
+    ax1.set_xticks(x1)
+    ax1.set_xticklabels(labels1, fontsize=8.0)
+    ax1.set_ylim(0, max(bottom) * 1.18)
+    ax1.set_ylabel("Profiler Sum of Layer/Op Time (ms)")
+    ax1.set_title("Inference Compute Breakdown by Network Stage\n(*RKNN bars: COLLECT_PERF_MASK sum; wall run=7.11ms)")
+    ax1.legend(loc="upper right", fontsize=6.8)
+    ax1.grid(axis="y", alpha=0.25)
+
+    # Panel 2: ONNX INT8 CPU Operator Category Breakdown (Exposing the Hidden Bottlenecks!)
+    i8_ops = anat["ort_profiling"]["onnx_int8_static"]["by_op_ms"]
+    op_groups = {
+        "FP32 Conv + QuickGelu\n(Stem + Head Protected)": i8_ops["Conv"] + i8_ops["QuickGelu"],
+        "QLinearConv (72)\n(Core Quant Conv)": i8_ops["QLinearConv"],
+        "QLinearSigmoid + Mul\n(SiLU Quant Overhead)": i8_ops["QLinearSigmoid"] + i8_ops["QLinearMul"],
+        "QLinearConcat / Add /\nSplit / Pool": i8_ops["QLinearConcat"] + i8_ops["QLinearAdd"] + i8_ops["Split"] + i8_ops["Concat"] + i8_ops["Add"] + i8_ops["NhwcMaxPool"],
+        "Resize FP32 + Transpose\n+ Q/DQ Boundaries": i8_ops["Resize"] + i8_ops["Transpose"] + i8_ops["DequantizeLinear"] + i8_ops["QuantizeLinear"] + i8_ops["Reshape"],
+        "Attention + DFL Tail\n(MatMul/Softmax/Sigmoid)": i8_ops["QLinearMatMul"] + i8_ops["QLinearSoftmax"] + i8_ops["Sub"] + i8_ops["Sigmoid"] + i8_ops["Div"] + i8_ops["Mul"],
+    }
+    g_names = list(op_groups.keys())[::-1]
+    g_vals = [op_groups[k] for k in g_names]
+    y2 = np.arange(len(g_names))
+    cols2 = ["#94a3b8", "#64748b", "#f59e0b", "#8b5cf6", "#059669", "#e11d48"]
+    bars2 = ax2.barh(y2, g_vals, color=cols2)
+    for b, v in zip(bars2, g_vals):
+        ax2.text(v + 0.18, b.get_y() + b.get_height() / 2, f"{v:.2f} ms ({100*v/sum(g_vals):.1f}%)", va="center", fontsize=7.5)
+    ax2.set_yticks(y2)
+    ax2.set_yticklabels(g_names, fontsize=7.5)
+    ax2.set_xlim(0, max(g_vals) * 1.42)
+    ax2.set_xlabel("ONNX Runtime CPU Op Time on 4x A76 (ms)")
+    ax2.set_title("Why ONNX INT8 CPU Still Takes ~27-32 ms:\nOnly 22.6% is QLinearConv; 77.4% is FP32/Act/Layout!")
+    ax2.grid(axis="x", alpha=0.25)
+
+    # Panel 3: C++ Preprocess Anatomy across 480p -> 720p -> 1080p (Q11 vs Virtual-Addr RGA)
+    pre_rows = {}
+    for ln in cpp_lines:
+        pm = re.match(
+            r"PREPROC_ANATOMY (\d+x\d+) \| Q11: memset=([\d.]+)ms lut=([\d.]+)ms loop=([\d.]+)ms .* \| RGA: border_sync=([\d.]+)ms import_vaddr=([\d.]+)ms improcess_hw=([\d.]+)ms release=([\d.]+)ms",
+            ln,
+        )
+        if pm:
+            pre_rows[pm.group(1)] = {
+                "q_mem": float(pm.group(2)), "q_lut": float(pm.group(3)), "q_loop": float(pm.group(4)),
+                "r_bdr": float(pm.group(5)), "r_imp": float(pm.group(6)), "r_hw": float(pm.group(7)), "r_rel": float(pm.group(8)),
+            }
+    res_keys = ["640x480", "1280x720", "1920x1080"]
+    xr = np.arange(len(res_keys))
+    bw = 0.34
+    q_m = np.array([pre_rows[k]["q_mem"] + pre_rows[k]["q_lut"] for k in res_keys])
+    q_l = np.array([pre_rows[k]["q_loop"] for k in res_keys])
+    ax3.bar(xr - bw / 2, q_m, width=bw, label="Q11 memset+LUT", color="#047857")
+    ax3.bar(xr - bw / 2, q_l, bottom=q_m, width=bw, label="Q11 Sparse Bilinear+RGB", color="#10b981")
+
+    r_b = np.array([pre_rows[k]["r_bdr"] for k in res_keys])
+    r_i = np.array([pre_rows[k]["r_imp"] + pre_rows[k]["r_rel"] for k in res_keys])
+    r_h = np.array([pre_rows[k]["r_hw"] for k in res_keys])
+    ax3.bar(xr + bw / 2, r_b, width=bw, label="RGA Border+Sync", color="#94a3b8")
+    ax3.bar(xr + bw / 2, r_i, bottom=r_b, width=bw, label="RGA Kernel Page Pin/Unpin", color="#ef4444")
+    ax3.bar(xr + bw / 2, r_h, bottom=r_b + r_i, width=bw, label="RGA 2D HW Blit (IM_SYNC)", color="#f59e0b")
+
+    for i, k in enumerate(res_keys):
+        qt = q_m[i] + q_l[i]
+        rt = r_b[i] + r_i[i] + r_h[i]
+        ax3.text(i - bw / 2, qt + 0.06, f"{qt:.2f}", ha="center", va="bottom", fontsize=7.8, fontweight="bold")
+        ax3.text(i + bw / 2, rt + 0.06, f"{rt:.2f}", ha="center", va="bottom", fontsize=7.8, fontweight="bold")
+    ax3.set_xticks(xr)
+    ax3.set_xticklabels(["480p\n(640x480)", "720p\n(1280x720)", "1080p\n(1920x1080)"], fontsize=8.0)
+    ax3.set_ylim(0, 4.6)
+    ax3.set_ylabel("Preprocess Latency (ms)")
+    ax3.set_title("Preprocess Sub-Stage Scaling (C++ DMA):\nVirtual-Addr Page Pinning Dominates RGA at 1080p!")
+    ax3.legend(loc="upper left", fontsize=6.6)
+    ax3.grid(axis="y", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close(fig)
+
+
 def main() -> None:
     fig_dir = REPO_ROOT / "reports" / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -381,6 +515,12 @@ def main() -> None:
             op5_dir / "resolution_before_after.csv",
             fig_dir / "orangepi5_before_after_fps_latency.png",
             fig_dir / "orangepi5_accuracy_and_resolution_parity.png",
+        )
+    if (op5_dir / "latency_anatomy.json").exists():
+        plot_latency_anatomy(
+            op5_dir / "latency_anatomy.json",
+            op5_dir / "latency_fps_before_after.csv",
+            fig_dir / "orangepi5_latency_component_anatomy.png",
         )
     print(f"[CHARTS] Generated verified figures in {fig_dir}")
 

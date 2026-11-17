@@ -1,0 +1,187 @@
+{
+  "io_jpeg_decode": {
+    "calib200_imread_mean_ms": 4.155,
+    "calib200_imread_p95_ms": 5.862,
+    "by_res_imdecode": {
+      "480p": {
+        "kb": 85.5,
+        "decode_ms": 2.807
+      },
+      "720p": {
+        "kb": 178.2,
+        "decode_ms": 8.345
+      },
+      "1080p": {
+        "kb": 329.6,
+        "decode_ms": 18.732
+      }
+    }
+  },
+  "cold_start_and_wrapper": {
+    "onnx_fp32": {
+      "init_ms": 56.13,
+      "frame0_ms": 47.002,
+      "frame1_ms": 46.12
+    },
+    "onnx_int8_static": {
+      "init_ms": 180.59,
+      "frame0_ms": 32.563,
+      "frame1_ms": 30.744
+    },
+    "npu_6head_1w": {
+      "init_ms": 15.64,
+      "frame0_ms": 8.319,
+      "frame1_ms": 8.144,
+      "py_wrapper_total_ms": 8.106,
+      "cpp_inner_total_ms": 8.059,
+      "py_ctypes_overhead_ms": 0.047
+    },
+    "npu_6head_6w": {
+      "init_ms": 65.97
+    }
+  },
+  "cpu_preprocess_anatomy": {
+    "legacy": {
+      "cv2_resize_ms": 1.221,
+      "alloc_paste_ms": 0.104,
+      "cvtColor_ms": 0.064,
+      "transpose_f32_scale_ms": 0.904,
+      "sum_ms": 2.292
+    },
+    "fast_blob": {
+      "canvas_fill_ms": 0.024,
+      "resize_inplace_ms": 1.275,
+      "blobFromImage_ms": 0.498,
+      "sum_ms": 1.798
+    }
+  },
+  "cpu_postprocess_anatomy": {
+    "zero_person": {
+      "cand_count": 0,
+      "score_filter_ms": 0.008,
+      "coord_unscale_ms": 0.0,
+      "nms_tolist_ms": 0.0,
+      "sum_ms": 0.008
+    },
+    "one_person": {
+      "cand_count": 10,
+      "score_filter_ms": 0.0099,
+      "coord_unscale_ms": 0.0829,
+      "nms_tolist_ms": 0.0072,
+      "sum_ms": 0.1
+    },
+    "crowded": {
+      "cand_count": 75,
+      "score_filter_ms": 0.0107,
+      "coord_unscale_ms": 0.0854,
+      "nms_tolist_ms": 0.0369,
+      "sum_ms": 0.133
+    }
+  },
+  "ort_profiling": {
+    "onnx_fp32": {
+      "n_runs": 13,
+      "mean_model_run_ms": 42.769,
+      "sum_node_ops_ms": 41.241,
+      "by_op_ms": {
+        "Conv": 31.567,
+        "QuickGelu": 5.786,
+        "Concat": 1.474,
+        "FusedConv": 0.558,
+        "Split": 0.517,
+        "Add": 0.435,
+        "FusedMatMul": 0.315,
+        "Resize": 0.176,
+        "Reshape": 0.135,
+        "MaxPool": 0.101,
+        "Softmax": 0.097,
+        "Sub": 0.025,
+        "Sigmoid": 0.018,
+        "Mul": 0.018,
+        "Div": 0.017
+      },
+      "by_module_ms": {
+        "Backbone_M3_M9": 14.24,
+        "Neck_FPN_PAN_M11_M22": 13.363,
+        "Stem_M0_M2_FP32_Protected": 6.88,
+        "Head_DFL_M23_FP32": 5.036,
+        "C2PSA_Attention_M10": 1.722
+      }
+    },
+    "onnx_int8_static": {
+      "n_runs": 13,
+      "mean_model_run_ms": 31.96,
+      "sum_node_ops_ms": 30.306,
+      "by_op_ms": {
+        "Conv": 8.559,
+        "QLinearConv": 6.85,
+        "QuickGelu": 2.668,
+        "QLinearMul": 2.647,
+        "QLinearSigmoid": 2.644,
+        "QLinearConcat": 2.228,
+        "Resize": 1.258,
+        "Transpose": 0.858,
+        "QLinearAdd": 0.719,
+        "Split": 0.358,
+        "DequantizeLinear": 0.31,
+        "Concat": 0.252,
+        "QLinearMatMul": 0.213,
+        "QLinearSoftmax": 0.18,
+        "QuantizeLinear": 0.172,
+        "Reshape": 0.126,
+        "NhwcMaxPool": 0.099,
+        "Add": 0.09,
+        "Sub": 0.025,
+        "Sigmoid": 0.017,
+        "Div": 0.017,
+        "Mul": 0.017
+      },
+      "by_module_ms": {
+        "Neck_FPN_PAN_M11_M22": 9.948,
+        "Stem_M0_M2_FP32_Protected": 7.029,
+        "Backbone_M3_M9": 6.48,
+        "Head_DFL_M23_FP32": 4.952,
+        "C2PSA_Attention_M10": 1.153,
+        "Graph_Fused_OR_IO": 0.744
+      }
+    }
+  },
+  "dvfs_sparse_arrival": {
+    "ondemand_sparse_fp32": {
+      "mean_ms": 59.291,
+      "min_ms": 49.414,
+      "max_ms": 65.619,
+      "p95_ms": 63.175
+    },
+    "ondemand_sparse_int8": {
+      "mean_ms": 48.803,
+      "min_ms": 40.397,
+      "max_ms": 53.302,
+      "p95_ms": 52.511
+    },
+    "performance_sparse_int8_fast": {
+      "mean_ms": 29.173,
+      "min_ms": 28.136,
+      "max_ms": 30.422,
+      "p95_ms": 30.106
+    }
+  },
+  "rknn_perf": {
+    "6head_normal": {
+      "rc": 1,
+      "lines": 4
+    },
+    "uncut_normal": {
+      "rc": 1,
+      "lines": 4
+    },
+    "fp16_uncut": {
+      "rc": 1,
+      "lines": 4
+    },
+    "6head_hybrid": {
+      "rc": 1,
+      "lines": 4
+    }
+  }
+}

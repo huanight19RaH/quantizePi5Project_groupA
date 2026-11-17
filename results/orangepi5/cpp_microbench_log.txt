@@ -1,0 +1,13 @@
+rga_api version 1.10.0_[8]
+PREPROC_ANATOMY 640x480 | Q11: memset=0.015ms lut=0.005ms loop=1.429ms explicit_sync=0.030ms (sum_nosync=1.449ms) | RGA: border_sync=0.021ms import_vaddr=0.330ms improcess_hw=0.375ms release=0.172ms (sum=0.898ms)
+PREPROC_ANATOMY 1280x720 | Q11: memset=0.016ms lut=0.005ms loop=1.126ms explicit_sync=0.025ms (sum_nosync=1.147ms) | RGA: border_sync=0.029ms import_vaddr=0.728ms improcess_hw=0.914ms release=0.354ms (sum=2.026ms)
+PREPROC_ANATOMY 1920x1080 | Q11: memset=0.016ms lut=0.005ms loop=1.104ms explicit_sync=0.025ms (sum_nosync=1.125ms) | RGA: border_sync=0.030ms import_vaddr=1.480ms improcess_hw=1.698ms release=0.703ms (sum=3.912ms)
+IO_TAX models/rknn/model_int8_6head_normal.rknn | cold_init=7.92ms | Copy: in_set=0.049ms run_wall=7.150ms (npu_hw=7.150ms) out_get_raw=0.070ms out_get_f32=0.074ms rel=0.000ms | ZC_NC1: run_dirty_cpu=7.113ms (hw=7.112ms) mem_sync=0.032ms run_presynced=7.202ms
+IO_TAX models/rknn/model_int8_6head_normal_sc.rknn | cold_init=16.85ms | Copy: in_set=0.115ms run_wall=7.337ms (npu_hw=7.336ms) out_get_raw=0.200ms out_get_f32=0.297ms rel=0.001ms | ZC_NC1: run_dirty_cpu=7.260ms (hw=7.259ms) mem_sync=0.039ms run_presynced=7.251ms
+IO_TAX models/rknn/model_int8_6head_hybrid.rknn | cold_init=30.49ms | Copy: in_set=0.053ms run_wall=11.358ms (npu_hw=11.358ms) out_get_raw=0.082ms out_get_f32=0.100ms rel=0.000ms | ZC_NC1: run_dirty_cpu=11.304ms (hw=11.304ms) mem_sync=0.018ms run_presynced=11.302ms
+IO_TAX models/rknn/model_int8_uncut_normal.rknn | cold_init=8.24ms | Copy: in_set=0.053ms run_wall=7.773ms (npu_hw=7.772ms) out_get_raw=0.021ms out_get_f32=0.021ms rel=0.000ms | ZC_NC1: run_dirty_cpu=7.710ms (hw=7.709ms) mem_sync=0.017ms run_presynced=7.701ms
+IO_TAX models/rknn/model_fp16_uncut.rknn | cold_init=15.56ms | Copy: in_set=4.645ms run_wall=12.747ms (npu_hw=12.747ms) out_get_raw=0.019ms out_get_f32=0.054ms rel=0.000ms | ZC_NC1: run_dirty_cpu=17.384ms (hw=17.383ms) mem_sync=0.045ms run_presynced=17.391ms
+POSTPROC_CPP empty conf=0.250 | pass=0/3549 (0.00%) kept=0 | scan_lut=0.0055ms fast_nms=0.0000ms total=0.0055ms
+POSTPROC_CPP one_person conf=0.250 | pass=10/3549 (0.28%) kept=1 | scan_lut=0.0056ms fast_nms=0.0002ms total=0.0058ms
+POSTPROC_CPP crowded conf=0.250 | pass=87/3549 (2.45%) kept=13 | scan_lut=0.0063ms fast_nms=0.0046ms total=0.0109ms
+POSTPROC_CPP crowded conf=0.001 | pass=290/3549 (8.17%) kept=49 | scan_lut=0.0084ms fast_nms=0.0438ms total=0.0522ms
