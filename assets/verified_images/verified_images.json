@@ -1,0 +1,60 @@
+{
+  "verified": [
+    {
+      "local_path": "C:\\Users\\ttung05\\Desktop\\Team_A\\assets\\verified_images\\rk3588_chip_54126906.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/4/49/Rockchip_RK3588.jpeg",
+      "original_format": "JPEG",
+      "saved_format": "JPEG",
+      "width": 1122,
+      "height": 1108,
+      "aspect_ratio": 1.0126,
+      "id": "rk3588_chip",
+      "credit": "Wikimedia Commons - Rockchip RK3588 SoC"
+    },
+    {
+      "local_path": "C:\\Users\\ttung05\\Desktop\\Team_A\\assets\\verified_images\\opi5_board_v13_e6df234f.png",
+      "source": "http://www.orangepi.org/img/pi5-fix/pi5-01.png",
+      "original_format": "PNG",
+      "saved_format": "PNG",
+      "width": 661,
+      "height": 468,
+      "aspect_ratio": 1.4124,
+      "id": "opi5_board_v13",
+      "credit": "Official Orange Pi 5 Product Image (orangepi.org)"
+    },
+    {
+      "local_path": "C:\\Users\\ttung05\\Desktop\\Team_A\\assets\\verified_images\\opi5_board_v12_6736857b.jpg",
+      "source": "http://www.orangepi.org/orangepiwiki/images/7/7f/Pi-5-details-pic01.png",
+      "original_format": "JPEG",
+      "saved_format": "JPEG",
+      "width": 712,
+      "height": 443,
+      "aspect_ratio": 1.6072,
+      "id": "opi5_board_v12",
+      "credit": "Official Orange Pi 5 Wiki Hardware Photo (orangepi.org)"
+    },
+    {
+      "local_path": "C:\\Users\\ttung05\\Desktop\\Team_A\\assets\\verified_images\\cctv_railway.jpg",
+      "source": "C:\\Users\\ttung05\\Desktop\\Team_A\\datasets\\cctv-naxyo\\test\\railway-759_jpg.rf.cf67018d8bbbccdf085778f1b3218c29.jpg",
+      "original_format": "JPEG",
+      "saved_format": "JPEG",
+      "width": 640,
+      "height": 640,
+      "aspect_ratio": 1.0,
+      "id": "cctv_railway",
+      "credit": "Roboflow cctv-naxyo v2 Test Set - Overhead Pedestrian Scene"
+    },
+    {
+      "local_path": "C:\\Users\\ttung05\\Desktop\\Team_A\\assets\\verified_images\\cctv_thermal.jpg",
+      "source": "C:\\Users\\ttung05\\Desktop\\Team_A\\datasets\\cctv-naxyo\\test\\00505_jpg.rf.dcf5e37cf9f8cc974a2d0e5566cd34ae.jpg",
+      "original_format": "JPEG",
+      "saved_format": "JPEG",
+      "width": 640,
+      "height": 640,
+      "aspect_ratio": 1.0,
+      "id": "cctv_thermal",
+      "credit": "Roboflow cctv-naxyo v2 Test Set - Thermal IR CCTV Scene"
+    }
+  ],
+  "errors": []
+}

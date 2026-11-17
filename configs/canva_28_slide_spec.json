@@ -1,0 +1,530 @@
+{
+  "title": "Team_A — YOLO26n INT8 & Orange Pi 5 (RK3588S) Edge Optimization Report",
+  "theme_preset": "editorial_light",
+  "slides": [
+    {
+      "layout": "hero_cover",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/assets/verified_images/opi5_board_v12_6736857b.jpg",
+      "image_fit": "cover",
+      "scrim_opacity": 0.74,
+      "image_source": "Official Orange Pi 5 V1.2 Hardware Photo (orangepi.org, verified_images/opi5_board_v12_6736857b.jpg)",
+      "kicker": "TEAM_A • EDGE AI QUANTIZATION & RK3588S ENGINEERING REPORT",
+      "title": "Tối Ưu Toàn Diện YOLO26n INT8 Cho Edge AI Trên Orange Pi 5",
+      "subtitle": "Quy trình khép kín từ tuyển chọn Calibration/Test chuẩn phân phối, khôi phục độ chính xác INT8, bóc tách Latency, tối ưu Backbone/Subgraph đến kiểm chứng thực địa CCTV.",
+      "meta": "SoC: Rockchip RK3588S (3× NPU + 4× A76 + 2D RGA)  |  23.5 → 122.2 FPS (1C) / 385.4 FPS (6W)  |  99.94% mAP@50 Parity",
+      "speaker_notes": "Trang bìa giới thiệu toàn bộ chuỗi tối ưu mô hình phát hiện người YOLO26n (416x416, 1 class person) từ môi trường PC calibration sang triển khai C++17 Zero-Copy trên Orange Pi 5."
+    },
+    {
+      "layout": "chart_split_right",
+      "kicker": "EXECUTIVE OVERVIEW • PARETO FRONTIER",
+      "title": "Bứt Phá Tốc Độ 16.4×–17.3× Không Đánh Đổi Độ Chính Xác",
+      "subtitle": "Tổng hợp độ chính xác trên COCO val2017 (5K), Test_7500 & Roboflow cctv-naxyo (3,737) kết hợp biên Speed–Accuracy.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/team_a_executive_pareto_summary.png",
+      "image_fit": "contain",
+      "image_source": "Team_A verified multi-benchmark synthesis chart (team_a_executive_pareto_summary.png)",
+      "metrics": [
+        {"value": "99.94%", "label": "Giữ mAP@50 val2017 (0.6974 vs 0.6979)"},
+        {"value": "8.18 ms", "label": "Min Latency 1 Core (122.2–122.3 FPS)"},
+        {"value": "385.4 FPS", "label": "Max Throughput 3-Core NPU (6W)"},
+        {"value": "-65.6%", "label": "Giảm file ONNX (9.30 → 3.20 MiB)"}
+      ],
+      "panel_title": "Thành tựu trọng tâm",
+      "bullets": [
+        "Vượt lỗi gãy RKNN INT8 Uncut (mAP = 0.000) nhờ cắt 6-Head Cut.",
+        "Vượt ONNX FP32 trên thực địa CCTV (0.5526 vs 0.5436 All; 0.6835 vs 0.6708 Test).",
+        "Kiểm chứng trên 11,437 ảnh duy nhất (>16,200 lượt đo chéo PC + Pi 5)."
+      ],
+      "speaker_notes": "Mọi điểm cấu hình tối ưu After đều nằm trên biên Pareto phía trên: giữ >=99.94% độ chính xác FP32 đồng thời giảm latency 5.2x và nâng throughput 16.4x–17.3x."
+    },
+    {
+      "layout": "timeline",
+      "kicker": "METHODOLOGY • 5 PHASES END-TO-END",
+      "title": "Lộ Trình Kỹ Thuật 5 Pha Từ Dữ Liệu Đến Thực Địa",
+      "subtitle": "Nguyên tắc cốt lõi: khóa chuẩn phân phối dữ liệu trước, tối ưu độ chính xác trên PC trước, rồi bóc tách & tối ưu phần cứng biên.",
+      "steps": [
+        {"step": "P0", "title": "Data Alignment", "body": "Chọn Test_7500 & Calib_200 giữ nguyên 54% Pos/Neg và 40% Small (<32² px), tách biệt tuyệt đối SHA-256 = 0."},
+        {"step": "P1", "title": "Sensitivity & INT8", "body": "Kiểm toán độ nhạy từng block, bảo vệ Stem M0–M2 + Head M23, calib Percentile 99.995% đạt mAP@50 = 0.69621."},
+        {"step": "P2", "title": "6-Head Cut Edge", "body": "Khắc phục lỗi RKNN INT8 Uncut (0.000) bằng 6-Head Cut trước DFL và C++17 Zero-Copy DMA NC1HWC2."},
+        {"step": "P3", "title": "Latency Anatomy", "body": "Bóc tách ORT 77.4% non-conv, NPU PERF_DETAIL, DVFS 15 FPS, JPEG Decode 1080p, Q11 LUT vs Virtual-Addr RGA."},
+        {"step": "P4", "title": "Multi-Core & CCTV", "body": "Nhân bản 3-Core NPU Ping-Pong đạt 385.4 FPS và benchmark zero-shot 3,737 ảnh Roboflow cctv-naxyo v2."}
+      ],
+      "speaker_notes": "Trình bày cấu trúc 5 giai đoạn khoa học của toàn bộ báo cáo, đảm bảo mỗi kết luận tốc độ đều gắn với kiểm chứng độ chính xác trên hàng nghìn ảnh."
+    },
+    {
+      "layout": "chart_split_left",
+      "kicker": "PHASE 0 • DATA & CALIBRATION SELECTION",
+      "title": "Tuyển Chọn Test_7500 & Calib_200 Bảo Toàn Phân Phối Person",
+      "subtitle": "Tránh lệch tỉ lệ ảnh trống và làm hỏng khả năng bắt người nhỏ (<32² px) khi lượng tử hóa INT8.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/distribution_alignment.png",
+      "image_fit": "contain",
+      "image_source": "Team_A verified dataset distribution chart (distribution_alignment.png)",
+      "metrics": [
+        {"value": "54.0%", "label": "Ảnh Positive (khớp 54.2% train2017)"},
+        {"value": "40.1%", "label": "Box Small <32² trong Calib_200"},
+        {"value": "0", "label": "Ảnh trùng giữa Calib & Test (SHA-256)"}
+      ],
+      "panel_title": "Quy tắc chọn lọc dữ liệu",
+      "bullets": [
+        "Giữ nguyên 46.0% ảnh Negative để đo trung thực False Positive nền trống.",
+        "Phân tầng S/M/L sát 41%/34%/25% của 118,287 ảnh COCO train2017.",
+        "Test_7500 gộp 5,000 val2017 + 2,500 train2017 khớp phân phối để đánh giá tin cậy."
+      ],
+      "speaker_notes": "Giải thích tại sao 200 ảnh calibration được phân tầng chuẩn xác cho dải động activation tin cậy hơn tập lớn nhưng mất cân bằng về người to hoặc thiếu ảnh âm tính."
+    },
+    {
+      "layout": "editable_table",
+      "kicker": "PHASE 0 • DISTRIBUTION AUDIT TABLE",
+      "title": "Bảng Cân Bằng Phân Phối Qua 6 Tập Dữ Liệu COCO (Test & Calib)",
+      "subtitle": "Mọi tập kiểm thử và hiệu chuẩn đều bám sát phân phối gốc 118,287 ảnh COCO train2017.",
+      "columns": [
+        {"label": "Tập Dữ Liệu", "weight": 2.4},
+        {"label": "Số Ảnh", "weight": 1.1},
+        {"label": "Pos (%)", "weight": 1.0},
+        {"label": "Neg (%)", "weight": 1.0},
+        {"label": "Small <32²", "weight": 1.1},
+        {"label": "Medium", "weight": 1.0},
+        {"label": "Large >96²", "weight": 1.0}
+      ],
+      "rows": [
+        {"cells": ["COCO train2017 (Gốc tham chiếu)", "118,287", "54.2%", "45.8%", "41.0%", "33.5%", "25.5%"]},
+        {"cells": ["COCO val2017", "5,000", "53.9%", "46.1%", "40.0%", "34.5%", "25.5%"]},
+        {"cells": ["Matched train2017 (Tách riêng)", "2,500", "54.2%", "45.8%", "41.6%", "32.6%", "25.8%"]},
+        {"cells": ["Test_7500 (Tập kiểm thử chính)", "7,500", "54.0%", "46.0%", "40.5%", "33.9%", "25.6%"], "highlight": "winner"},
+        {"cells": ["Calib_200 (Tập Calib chính thức)", "200", "54.0%", "46.0%", "40.1%", "35.4%", "24.5%"], "highlight": "winner"},
+        {"cells": ["Calib_400 (Mở rộng kiểm chứng)", "400", "54.2%", "45.8%", "38.6%", "35.0%", "26.3%"]}
+      ],
+      "takeaway": "Calib_200 bám sát Test_7500 ở mức ±0.4% (Pos 54.0%, Small 40.1% vs 40.5%) trong khi giữ ranh giới dữ liệu sạch 100%.",
+      "speaker_notes": "Bảng phân phối chỉnh sửa trực tiếp trong Canva giúp chứng minh tỉ lệ vật thể person mọi kích cỡ được bảo toàn trước khi bước vào quantization."
+    },
+    {
+      "layout": "comparison",
+      "kicker": "PHASE 0 • FP32 BASELINE BEFORE QUANTIZATION",
+      "title": "Chuẩn Hóa Baseline FP32 Trước Lượng Tử Hóa (Cắt 80 → 1 Class)",
+      "subtitle": "Xuất mô hình ONNX FP32 1 lớp `person` (`416×416`, opset 17) với sai số toán học bằng không so với PyTorch.",
+      "left_col": {
+        "title": "PyTorch_FP32_GPU (80-Class Gốc)",
+        "bullets": [
+          "Độ chính xác Test_7500: mAP@50 = 0.69952",
+          "mAP@50:95 = 0.46395 | mAP@75 = 0.47745",
+          "AP_small (<32² px) = 0.18162 | F1 (@0.25) = 0.6749",
+          "Dung lượng trọng số gốc: 5.29 MiB (.pt)",
+          "Tốc độ PC GPU: 3.20s / 7,500 ảnh (2,341.7 img/s)"
+        ]
+      },
+      "right_col": {
+        "title": "ONNX_FP32_1cls_Baseline (Chuẩn Đối Chiếu)",
+        "bullets": [
+          "Độ chính xác Test_7500: mAP@50 = 0.69952 (Δ = 0.00000)",
+          "mAP@50:95 = 0.46396 | AP_small = 0.18162 (MaxAbsDiff = 0.00)",
+          "Precision = 0.8715 | Recall = 0.5506 | F1 = 0.6749",
+          "Cảnh báo giả nền trống: NegFP = 102 boxes | Size = 9.30 MiB",
+          "Tốc độ PC ORT CPU: 10.14s (739.4 img/s) | Pi 5: 42.46 ms (23.53 FPS)"
+        ]
+      },
+      "takeaway": "Baseline ONNX FP32 1 lớp đạt độ khớp số học 100% với PyTorch, làm mốc chuẩn tuyệt đối cho toàn bộ chuỗi tối ưu INT8.",
+      "speaker_notes": "Khẳng định việc cắt bỏ 79 class không liên quan không làm suy giảm dù chỉ 0.00001 mAP của class person."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 1 • PER-BLOCK SENSITIVITY AUDIT",
+      "title": "Chẩn Đoán Độ Nhạy Từng Block: Lý Do Naive INT8 Sập Về 0.000",
+      "subtitle": "Lượng tử hóa thử nghiệm từng khối đơn lẻ trên Test_7500 chỉ ra hai điểm tử huyệt ở Stem đầu vào và DFL Decode Tail.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/block_sensitivity_ranking.png",
+      "image_fit": "contain",
+      "image_source": "Team_A per-block sensitivity audit chart (block_sensitivity_ranking.png)",
+      "cards": [
+        {"title": "Tử huyệt 1: Stem M0–M2", "body": "/model.1 (box_mae = 5.23 px), /model.2 (3.20 px), /model.0 (1.59 px) khuếch đại sai số không gian.", "highlight": "alert"},
+        {"title": "Tử huyệt 2: Decode Tail", "body": "/model.23/decode_tail (1.29 px & đứng đầu score_mae = 3.9e-5) do dải DFL softmax & Sigmoid.", "highlight": "alert"},
+        {"title": "Chiến lược Mixed-Precision", "body": "Giữ Stem M0–M2 & Head M23 ở FP32 trên ONNX; tách 6-Head trước DFL khi xuống NPU RKNN.", "highlight": "winner"}
+      ],
+      "speaker_notes": "Thay vì đoán mò, biểu đồ audit từng block chứng minh rõ chỉ cần bảo vệ đầu vào Stem và đuôi Head là toàn bộ thân mạng INT8 giữ được độ chính xác."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 1 • QUANTIZATION PARETO ON 7,500 IMAGES",
+      "title": "Biên Pareto Dung Lượng vs mAP@50 & Tỉ Lệ Phủ INT8 Conv",
+      "subtitle": "Đánh giá 15 cấu hình định dạng (FP32, FP16, Dynamic, Naive & Mixed Static INT8) trên trọn bộ Test_7500.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/pareto_size_vs_map50.png",
+      "image_fit": "contain",
+      "image_source": "Team_A Pareto size and coverage chart (pareto_size_vs_map50.png)",
+      "cards": [
+        {"title": "Dynamic & Naive Bị Loại", "body": "Naive INT8 (2.76 MiB) sập mAP = 0.000; Dynamic INT8 (2.96 MiB) tụt xuống 0.68987.", "highlight": "alert"},
+        {"title": "Winner: Head+M0–M2 Pct99.995", "body": "3.20 MiB (-65.6%), phủ 72/102 QLinearConv + 4 QLinearMatMul, chỉ 1/6 Q/DQ boundary.", "highlight": "winner"},
+        {"title": "Không Mở Rộng Thừa M4+M16", "body": "Thêm M4+M16 nâng nhẹ +0.00012 mAP nhưng tăng size 3.58 MiB và chậm lại 7.32s → 8.63s."}
+      ],
+      "speaker_notes": "Biểu đồ Pareto chứng minh INT8_HeadM0M1M2_Pct99995_C200 nằm đúng điểm gãy tối ưu giữa dung lượng, độ phủ INT8 và mAP@50:95."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 1 • ACCURACY & SMALL PERSON RECOVERY",
+      "title": "Lộ Trình Khôi Phục mAP@50 & Bảo Toàn Person Nhỏ (<32² px)",
+      "subtitle": "Từng bước tinh chỉnh giúp kéo mAP@50 từ 0.68987 → 0.69621 (99.53% FP32) và AP_small đạt 0.18094.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/int8_optimization_progression.png",
+      "image_fit": "contain",
+      "image_source": "Team_A INT8 optimization progression chart (int8_optimization_progression.png)",
+      "cards": [
+        {"title": "mAP@50 Đặt 0.69621", "body": "Chỉ lệch -0.00331 so với FP32 (0.69952) và mAP@50:95 đạt 0.46170 (-0.00226).", "highlight": "winner"},
+        {"title": "AP_small Đặt 0.18094", "body": "Giữ 99.63% khả năng bắt người nhỏ so với FP32 (0.18162), tránh hiện tượng mù vật thể xa.", "highlight": "winner"},
+        {"title": "Giảm Báo Động Giả (NegFP)", "body": "Số box dương tính giả trên ảnh trống giảm từ 102 (FP32) xuống còn 95 boxes; Mean IoU = 0.9723."}
+      ],
+      "speaker_notes": "Đồ thị chứng minh trực tiếp việc giữ nguyên phân phối Calib_200 giúp chỉ số AP_small gần như chạm trần FP32."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 1 & 2 • CALIBRATION METHODS AUDIT",
+      "title": "Đối Chiếu Phương Pháp Calibration Trên PC & RKNN NPU",
+      "subtitle": "So sánh sai số định vị (Box MAE, IoU) ở PC và độ chính xác 5,000 ảnh val2017 giữa Normal / MMSE / KL / Hybrid trên Edge.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/calibration_methods_and_error_bounds.png",
+      "image_fit": "contain",
+      "image_source": "Team_A calibration methods comparison chart (calibration_methods_and_error_bounds.png)",
+      "cards": [
+        {"title": "PC: Percentile 99.995% + M0–2", "body": "Kéo sai số thô từ 9.12 px (Naive) & 6.11 px (MinMax) xuống 1.67 px; Mean IoU nhảy lên 0.972.", "highlight": "winner"},
+        {"title": "Edge: RKNN Normal Vượt Trội", "body": "Trên 5K ảnh val2017, Normal giữ mAP@50 = 0.69734 (Recall 0.550, F1 0.674) vượt Hybrid (0.69359).", "highlight": "winner"},
+        {"title": "MMSE & KL Mất Recall", "body": "Trên RKNN, MMSE/KL tụt mAP@50 về 0.69028 và Recall về 0.528 do cắt quá mạnh đuôi phân phối logit.", "highlight": "alert"}
+      ],
+      "speaker_notes": "So sánh rõ hai cấp calibration: Percentile 99.995% tối ưu ONNX Runtime trên PC và Normal Quantization tối ưu RKNN w8a8 trên NPU."
+    },
+    {
+      "layout": "editable_table",
+      "kicker": "PHASE 1 • 7,500-IMAGE BENCHMARK SUMMARY",
+      "title": "Bảng Kết Quả Trước & Sau Quantization Trên Test_7500 (PC)",
+      "subtitle": "So sánh toàn diện 9 biến thể đại diện từ 15 thử nghiệm chính thức trên tập 7,500 ảnh.",
+      "columns": [
+        {"label": "Biến Thể Mô Hình", "weight": 2.6},
+        {"label": "mAP@50", "weight": 1.0},
+        {"label": "mAP@50:95", "weight": 1.0},
+        {"label": "AP_small", "weight": 1.0},
+        {"label": "F1 (@0.25)", "weight": 1.0},
+        {"label": "Mean IoU", "weight": 1.0},
+        {"label": "NegFP", "weight": 0.8},
+        {"label": "Size (MiB)", "weight": 1.0}
+      ],
+      "rows": [
+        {"cells": ["PyTorch_FP32_GPU", "0.69952", "0.46395", "0.18162", "0.6749", "1.0000", "102", "5.29"]},
+        {"cells": ["ONNX_FP32_1cls_Baseline", "0.69952", "0.46396", "0.18162", "0.6749", "1.0000", "102", "9.30"]},
+        {"cells": ["ONNX_FP16", "0.69947", "0.46398", "0.18181", "0.6749", "0.9960", "103", "4.71"]},
+        {"cells": ["ONNX_INT8_Dynamic", "0.68987", "0.45517", "0.17775", "0.6670", "0.9420", "100", "2.96"], "highlight": "alert"},
+        {"cells": ["ONNX_INT8_Static_Naive", "0.00000", "0.00000", "0.00000", "0.0000", "0.0000", "0", "2.76"], "highlight": "alert"},
+        {"cells": ["INT8_StdMix_MinMax_C200", "0.69038", "0.45467", "0.17507", "0.6646", "0.9492", "78", "3.44"]},
+        {"cells": ["INT8_HeadOnly_Pct9999_C200", "0.69470", "0.45967", "0.18008", "0.6701", "0.9645", "94", "3.19"]},
+        {"cells": ["INT8_HeadM0M1M2_Pct99995_C200", "0.69621", "0.46170", "0.18094", "0.6718", "0.9723", "95", "3.20"], "highlight": "winner"},
+        {"cells": ["INT8_SensM1M2M16M4_Pct99995", "0.69633", "0.46207", "0.18024", "0.6728", "0.9772", "103", "3.58"]}
+      ],
+      "takeaway": "INT8_HeadM0M1M2_Pct99995_C200 giữ 99.53% mAP@50, 99.63% AP_small, giảm 65.6% dung lượng và giảm cả false positive.",
+      "speaker_notes": "Số liệu trích 100% từ results/full_7500_ablation_report.csv."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 1 & 2 • SPEED & COMPRESSION",
+      "title": "Tốc Độ Trước & Sau Quantization (PC + Pi 5) & Nén Băng Thông",
+      "subtitle": "Chứng minh Static INT8 tăng tốc +38.6% trên PC CPU và 3.85× tổng chu trình trên Orange Pi 5 NPU, trong khi Dynamic INT8 phản tác dụng.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/quantization_speed_and_compression.png",
+      "image_fit": "contain",
+      "image_source": "Team_A speed and memory compression chart (quantization_speed_and_compression.png)",
+      "cards": [
+        {"title": "Cảnh báo Dynamic INT8", "body": "Trên PC ORT, Dynamic INT8 rớt từ 739.4 → 533.7 img/s (-27.8%) vì chi phí tính scale động mỗi batch.", "highlight": "alert"},
+        {"title": "Pi 5: 244.6s → 63.6s (5K ảnh)", "body": "Tính cả đọc/decode JPEG từ đĩa, 5,000 ảnh val2017 tăng tốc 3.85× khi chuyển FP32 CPU sang RKNN INT8 RGA.", "highlight": "winner"},
+        {"title": "Cắt -48% Lưu Lượng DDR", "body": "File RKNN SC nén còn 3.56 MiB (-45.9%), DMA còn 5.16 MiB (-61.3%), DDR R/W NPU 36.0 → 18.7 MB/fr.", "highlight": "winner"}
+      ],
+      "speaker_notes": "Nhiều người nhầm tưởng hễ quantize INT8 là tự động nhanh hơn — biểu đồ chỉ rõ Dynamic INT8 chậm hơn FP32 trên CPU còn Static INT8 phải đi kèm NPU mới bùng nổ."
+    },
+    {
+      "layout": "cards_grid",
+      "kicker": "DIAGNOSIS • WHY CPU INT8 STALLS AT 32.4 FPS",
+      "title": "Nghịch Lý CPU ARM: Giảm 65.6% Size Nhưng Chỉ Đạt 23.5 → 32.4 FPS",
+      "subtitle": "4 nguyên nhân gốc rễ giải thích vì sao tối ưu mô hình trên CPU thôi là chưa đủ cho bài toán thiết bị biên.",
+      "cards": [
+        {"tag": "BOTTLENECK 01", "title": "77.4% Toán Tử Phi-INT8", "body": "Giữ Stem+Head FP32 (37.0%) và không hợp nhất QLinearSigmoid+Mul (17.5%) cùng QLinearConcat/Resize kìm chặt xung CPU ARM.", "highlight": "alert"},
+        {"tag": "BOTTLENECK 02", "title": "Sụt Xung DVFS Sparse", "body": "Dưới governor ondemand ở camera 15 FPS (nghỉ 80ms), Cortex-A76 rơi về 408 MHz làm ONNX INT8 đội lên 48.8–53.3 ms."},
+        {"tag": "BOTTLENECK 03", "title": "Thuế Copy Python/CV2", "body": "Letterbox RGB + transpose + ép float32 trên CPU mất 3.73 ms/frame với 3 lượt sao chép mảng DRAM liên tiếp."},
+        {"tag": "NEXT STEP", "title": "Chuyển Sang NPU + C++17", "body": "Đẩy 100% lớp Conv/SiLU lên 3 nhân RKNPU w8a8 và loại bỏ hoàn toàn float32/Python copy bằng Zero-Copy DMA.", "highlight": "winner"}
+      ],
+      "speaker_notes": "Slide chuyển tiếp cực quan trọng: lý giải tại sao cần giai đoạn bóc tách từng thành phần làm chậm trước khi thiết kế C++ engine trên RK3588S."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 3 • ORT CPU PROFILING ANATOMY",
+      "title": "Bóc Tách 31.96 ms Của ONNX INT8 CPU: Phơi Bày 77.4% Chi Phí Phụ",
+      "subtitle": "Kết quả profiler từng toán tử trên 4× Cortex-A76 @ 2256 MHz (`latency_anatomy.json`) và so sánh độ phân giải tiền xử lý.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/orangepi5_latency_component_anatomy.png",
+      "image_fit": "contain",
+      "image_source": "Team_A ORT profiling and preproc anatomy chart (orangepi5_latency_component_anatomy.png)",
+      "cards": [
+        {"title": "QLinearConv Chỉ 22.6%", "body": "72 lớp tích chập INT8 cốt lõi chỉ mất 6.85 ms; phần lớn thời gian bị lãng phí ngoài nhân Conv INT8.", "highlight": "alert"},
+        {"title": "37.0% Kẹt Ở Stem & Head FP32", "body": "Conv + QuickGelu tại Stem M0–M2 (7.03 ms) và Head M23 (4.95 ms) chiếm 11.23 ms ngay trong bản INT8 Static."},
+        {"title": "SiLU LUT & Đổi Layout (38.9%)", "body": "QLinearSigmoid+Mul (5.29 ms) + QLinearConcat/Add (3.75 ms) + Resize/Transpose/Q-DQ (2.72 ms)."}
+      ],
+      "speaker_notes": "Minh chứng bằng profiling thật: không thể bứt phá trên ONNX Runtime ARM CPU vì các op phụ trợ chiếm gấp 3.4 lần thời gian của chính QLinearConv."
+    },
+    {
+      "layout": "chart_split_right",
+      "kicker": "PHASE 3 • NPU LAYER PROFILER & IO_TAX",
+      "title": "Giải Phẫu NPU RK3588S: Layer Nghẽn & Thuế DMA Zero-Copy",
+      "subtitle": "Phân tích bảng RKNN_QUERY_PERF_DETAIL (190 vs 193 layers) và phép đo C++ IO_TAX cho 5 biến thể .rknn.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/orangepi5_hardware_npu_deep_dive.png",
+      "image_fit": "contain",
+      "image_source": "Team_A RK3588S NPU hardware deep dive chart (orangepi5_hardware_npu_deep_dive.png)",
+      "metrics": [
+        {"value": "813 µs", "label": "/model.0/conv (chỉ 2.25% MAC)"},
+        {"value": "4.65 ms", "label": "inputs_set Copy tax trên FP16"},
+        {"value": "0.03 ms", "label": "dma_mem_sync trên 6H ZC NC1"}
+      ],
+      "panel_title": "Phát hiện phần cứng NPU (Top Panels)",
+      "bullets": [
+        "/model.0 (3ch RGB stride-2) nghẽn nặng nhất (8.2% toàn NPU); hai phép exSoftmax13 tốn 364 µs.",
+        "Zero-Copy DMA NC1HWC2 triệt tiêu copy driver: 6H Normal run = 7.113 ms.",
+        "Dùng buffer cacheable + rknn_mem_sync thay NON_CACHEABLE để tránh SIGBUS ARM64."
+      ],
+      "speaker_notes": "Tập trung giải thích 2 panel phía trên của biểu đồ Deep Dive: cách Zero-Copy NC1HW cắt thuế I/O và nơi tập trung chu kỳ phần cứng của NPU."
+    },
+    {
+      "layout": "chart_split_left",
+      "kicker": "PHASE 3 • PREPROCESS ARCHITECTURE CROSSOVER",
+      "title": "Preprocess C++: Tại Sao Virtual-Addr RGA Thua Q11 LUT Ở 1080p?",
+      "subtitle": "Cả hai phương pháp đều bỏ ép float32 để ghi thẳng UINT8 DMA, nhưng đảo chiều ở ngưỡng 720p/1080p.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/orangepi5_latency_component_anatomy.png",
+      "image_fit": "contain",
+      "image_source": "Team_A preprocess scaling chart (orangepi5_latency_component_anatomy.png)",
+      "metrics": [
+        {"value": "0.90 ms", "label": "RGA thắng 480p (Q11: 1.45 ms)"},
+        {"value": "1.13 ms", "label": "Q11 LUT 1080p (3.48× hơn RGA)"},
+        {"value": "2.18 ms", "label": "Thuế ghim trang ảo RGA @ 1080p"}
+      ],
+      "panel_title": "Cơ chế vật lý (Panel 3 phải)",
+      "bullets": [
+        "1080p Virtual-Addr RGA: blit HW chỉ 1.70 ms, nhưng import_vaddr + release tốn 2.18 ms ghim 6.22 MB.",
+        "Q11 Sparse LUT chỉ quét trên kích thước đích 416×234 nên luôn phẳng (~1.13–1.45 ms).",
+        "Gỡ check nhầm out_py%2 nâng tỉ lệ kích hoạt RGA trên Calib_200 từ 34.5% lên 70.0%."
+      ],
+      "speaker_notes": "Giải thích chi tiết định luật phần cứng O(out_w * out_h) của thuật toán Q11 LUT tự thiết kế so với page-pinning O(in_w * in_h) của DMA virtualaddr."
+    },
+    {
+      "layout": "chart_split_right",
+      "kicker": "PHASE 3 • HOST SYSTEM BOTTLENECKS",
+      "title": "Hệ Thống Host: DVFS 15 FPS, Giải Mã JPEG & Postprocess 17.2×",
+      "subtitle": "Bóc tách các nút thắt bên ngoài nhân suy luận: xung nhịp, I/O ảnh nén camera và giải mã NMS.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/orangepi5_hardware_npu_deep_dive.png",
+      "image_fit": "contain",
+      "image_source": "Team_A DVFS, JPEG decode and C++ postproc deep dive (orangepi5_hardware_npu_deep_dive.png)",
+      "metrics": [
+        {"value": "+19.6 ms", "label": "Gai DVFS ondemand ở 15 FPS"},
+        {"value": "18.73 ms", "label": "JPEG SW Decode 1080p (>2× NPU)"},
+        {"value": "5.8 µs", "label": "Postproc 1 người (từ 100 µs)"}
+      ],
+      "panel_title": "Chi tiết tối ưu Host (Bottom Panels)",
+      "bullets": [
+        "Khóa tune_orangepi5.sh performance xóa biến động DVFS sparse 48.8 → 29.2 ms (CPU); NPU cố định 8.18 ms.",
+        "Lazy Int8 Branch Cut + LUT[256] trên C++ bỏ 99% anchor nguyên, cắt Postproc 12–17× (còn 5.5–10.9 µs).",
+        "Cảnh báo 1080p thực chiến: phải dùng MPP VDEC phần cứng thay cho cv2.imdecode CPU."
+      ],
+      "speaker_notes": "Tập trung vào 2 panel phía dưới của biểu đồ Deep Dive để bảo đảm hệ thống camera thật không bị nghẽn ngược bởi JPEG decode hoặc CPU governor."
+    },
+    {
+      "layout": "editable_table",
+      "kicker": "PHASE 3 • MILLISECOND ACCOUNTING",
+      "title": "Bảng Kế Toán Chi Phí Latency: Nơi 34.28 ms Đã Được Cắt Giảm",
+      "subtitle": "Tổng hợp đóng góp của từng tầng tối ưu khi chuyển từ ONNX FP32/INT8 CPU sang RKNN INT8 6Head + C++17.",
+      "columns": [
+        {"label": "Thành Phần Độ Trễ", "weight": 2.1},
+        {"label": "Trước (FP32 / INT8)", "weight": 1.6},
+        {"label": "Sau (RKNN 6H + RGA)", "weight": 1.6},
+        {"label": "Cắt Giảm", "weight": 1.2},
+        {"label": "Giải Pháp Kỹ Thuật Cốt Lõi", "weight": 2.7}
+      ],
+      "rows": [
+        {"cells": ["1. Preprocess (Letterbox)", "3.638 / 3.731 ms", "1.066 ms (0.898 480p)", "-2.57 ms (-71%)", "Ghi trực tiếp UINT8 DMA bằng RGA (<=640p) hoặc Q11 LUT (>=720p)"]},
+        {"cells": ["2. Suy luận Core Model", "38.629 / 26.858 ms", "7.103 ms (1C) / 2.59 6W", "-31.53 ms (-82%)", "Chuyển 100% lên NPU w8a8 + ZeroCopy NC1HW + 6-Head Cut"]},
+        {"cells": ["3. Postprocess + NMS", "0.194 / 0.197 ms", "0.010 ms (5.5–10.9 µs)", "-0.184 ms (-95%)", "Lọc ngưỡng nguyên int8 + LUT[256] + FastNMS C++17"]},
+        {"cells": ["4. Gai DVFS (Sparse 15 FPS)", "+16.8–19.6 ms", "0 ms jitter", "Xóa spike +58%", "Khóa A76 2256 MHz & NPU 1000 MHz (performance governor)"]},
+        {"cells": ["5. Cold Init & Python Wrap", "56.1 / 180.6 ms init", "15.64 ms (1W) | 47 µs", "Nhanh 3.6–11.5×", "C++ rknn_init + DMA Pool; ctypes overhead chỉ 47 µs/fr"]},
+        {"cells": ["Tổng 1 Luồng E2E (Calib_200)", "42.461 / 30.786 ms", "8.179 ms (122.24 FPS)", "5.19× / 3.77×", "Bảo toàn 99.94% mAP@50 trên 5,000 ảnh COCO val2017"], "highlight": "winner"}
+      ],
+      "takeaway": "Toàn bộ pipeline rút từ 42.461 ms (23.53 FPS) xuống 8.179 ms (122.24 FPS) ở 1 core và 2.59 ms/ảnh (385.43 FPS) ở 6 workers.",
+      "speaker_notes": "Đây là bảng kế toán chính thức đối chiếu 1-1 với latency_fps_before_after.csv và latency_anatomy.json."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 3 • BACKBONE & ARCHITECTURE OPTIMIZATION",
+      "title": "Tối Ưu Latency Toàn Bộ Backbone, Attention, Neck & Head (YOLO26n)",
+      "subtitle": "Phân rã theo 6 khối kiến trúc từ ORT CPU sang RKNN NPU cùng hiệu suất MAC (%) và băng thông DDR từng khối.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/backbone_optimization_and_mac_profile.png",
+      "image_fit": "contain",
+      "image_source": "Team_A backbone stage latency and MAC profile chart (backbone_optimization_and_mac_profile.png)",
+      "cards": [
+        {"title": "Backbone M3–M9 (-85.7%)", "body": "Giảm từ 14.3 ms (FP32 CPU) / 6.5 ms (INT8 CPU) → 2.05 ms NPU nhờ ConvExSwish hợp nhất (đỉnh 70.5% MAC).", "highlight": "winner"},
+        {"title": "Cắt Đuôi DFL + 5× CPU Reshape", "body": "6-Head Cut bỏ 17 lớp cuối (745 µs gồm 157 µs CPU fallback), đưa 100.0% mạng chạy thuần trên NPU.", "highlight": "winner"},
+        {"title": "Hạn Chế Ở Stem M0 (2.25% MAC)", "body": "M0 (813 µs) bị giới hạn bởi ảnh 3 kênh stride-2; Hybrid cast tốn +4.19 ms; SC nén còn 3.56 MiB / 5.16 MB DMA."}
+      ],
+      "speaker_notes": "Phân tích rõ tối ưu thực tế đã làm trên toàn bộ backbone/graph (training-free compiler & subgraph optimization), đồng thời chỉ ra điểm MAC thấp ở M0 làm hướng nâng cấp kiến trúc tiếp theo."
+    },
+    {
+      "layout": "editable_table",
+      "kicker": "PHASE 3 • SUBGRAPH OPTIMIZATION COMPARISON",
+      "title": "So Sánh Các Chiến Lược Tối Ưu Graph & Backbone Trên NPU RK3588S",
+      "subtitle": "Đối chiếu Uncut FP16, Uncut INT8, 6-Head Hybrid, 6-Head Normal và nén trọng số SCMode trên Orange Pi 5.",
+      "columns": [
+        {"label": "Kiến Trúc Graph NPU", "weight": 2.3},
+        {"label": "CPU Fall (µs)", "weight": 1.0},
+        {"label": "NPU Inf 1C", "weight": 1.1},
+        {"label": "6W Max FPS", "weight": 1.1},
+        {"label": "File / DMA (MiB)", "weight": 1.4},
+        {"label": "val2017 mAP@50", "weight": 1.1}
+      ],
+      "rows": [
+        {"cells": ["RKNN FP16 Uncut (Tham chiếu NPU)", "180 µs", "12.695 ms", "53.0 (1C)", "6.58 / 13.33", "0.69689"]},
+        {"cells": ["RKNN INT8 Uncut (Scale sụp)", "157 µs (5× Reshape)", "7.727 ms", "108.5 (1C)", "4.23 / 5.85", "0.00000"], "highlight": "alert"},
+        {"cells": ["RKNN INT8 6-Head Hybrid", "0 µs", "11.304 ms", "207.6 FPS", "6.11 / 11.85", "0.69359"], "highlight": "alert"},
+        {"cells": ["RKNN INT8 6-Head Normal + RGA", "0 µs", "7.103 ms", "385.43 FPS", "3.98 / 5.61", "0.69744"], "highlight": "winner"},
+        {"cells": ["RKNN INT8 6-Head Normal SCMode", "0 µs", "7.156 ms", "385.03 FPS", "3.56 / 5.16", "0.69734"], "highlight": "winner"}
+      ],
+      "sidebar": {
+        "image_path": "C:/Users/ttung05/Desktop/Team_A/assets/verified_images/rk3588_chip_54126906.jpg",
+        "title": "Ranh giới tối ưu Backbone",
+        "bullets": [
+          "Đã hoàn thành (Training-free): 6-Head Cut, 0 CPU fallback, tắt SDPA fuse lỗi C2PSA, NC1HW, SC compression.",
+          "Hướng Phase 5 (Retrain): thay M0 3ch tăng MAC và rút gọn exSoftmax13 ở C2PSA."
+        ]
+      },
+      "speaker_notes": "Giải thích thẳng thắn và minh bạch cho hội đồng thấy rõ giới hạn của training-free optimization vs retraining backbone."
+    },
+    {
+      "layout": "cards_grid",
+      "kicker": "HARDWARE CO-DESIGN • MAXIMIZING RK3588S",
+      "title": "Khai Thác 100% Phần Cứng Orange Pi 5 Trên Cả 3 Khối Silicon",
+      "subtitle": "Phối hợp đồng thời CPU Cortex-A76, 3 nhân NPU RKNPU2 và bộ tăng tốc 2D RGA cùng bộ nhớ DMA.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/assets/verified_images/opi5_board_v13_e6df234f.png",
+      "image_fit": "contain",
+      "image_caption": "Orange Pi 5 V1.3.2 (RK3588S, 8GB LPDDR4x) — Ảnh gốc trang chủ Orange Pi",
+      "cards": [
+        {"tag": "3× RKNPU CORES", "title": "Ping-Pong rknn_dup_context", "body": "Chạy xoay vòng trên CORE_0/1/2 với 1→3→6 workers (122.2 → 325.8 → 385.4 FPS), phân tán áp lực bus LPDDR (+0.56 ms).", "highlight": "winner"},
+        {"tag": "4× CORTEX-A76", "title": "Affinity & Perf Governor", "body": "Ghim tiến trình vào cores 4–7 (2256 MHz), khóa performance xóa hoàn toàn tụt xung 408 MHz trên nhân A55."},
+        {"tag": "2D RGA & NEON", "title": "Auto Router Q11 vs RGA", "body": "Biên dịch -O3 -mcpu=cortex-a76+fp16+dotprod; dùng RGA cho ≤640p và Q11 LUT cho HD/FHD tránh page pinning."}
+      ],
+      "speaker_notes": "Thể hiện rõ thiết kế đồng bộ phần mềm C++ với phần cứng RK3588S thật của Orange Pi 5."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 2 & 4 • EDGE BEFORE VS AFTER LADDER",
+      "title": "Thang Tăng Tốc Thực Đo Trên Orange Pi 5: 23.5 → 122.2 → 385.4 FPS",
+      "subtitle": "Chuỗi nâng cấp 17 cấu hình trên Calib_200 RAM-preloaded cho thấy bước nhảy cả về Throughput (trái) và Single Latency (phải).",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/orangepi5_before_after_fps_latency.png",
+      "image_fit": "contain",
+      "image_source": "Team_A Orange Pi 5 FPS and latency ladder chart (orangepi5_before_after_fps_latency.png)",
+      "cards": [
+        {"title": "Before: 23.53 / 32.44 FPS", "body": "ONNX FP32 (42.46 ms) & ONNX INT8 CPU (30.79 ms) dưới mặc định ondemand."},
+        {"title": "1-Core Min Latency: 8.18 ms", "body": "6Head ZeroCopy NC1 + RGA đạt 122.24 FPS (nhanh 5.19× FP32, P95 chỉ 8.64 ms).", "highlight": "winner"},
+        {"title": "6-Worker Max: 385.43 FPS", "body": "2.59 ms/ảnh quy đổi trên 3 nhân NPU, đủ gánh 12 luồng camera 30 FPS thời gian thực.", "highlight": "winner"}
+      ],
+      "speaker_notes": "Phân biệt rõ độ trễ phản hồi 1 camera (8.18 ms) và năng lực thông lượng đa luồng tối đa (385.4 FPS)."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 2 • FULL 5,000-IMG VAL2017 & CAMERA RESOLUTION",
+      "title": "Bảo Toàn mAP@50 Trên 5,000 Ảnh val2017 & Scaling 480p → 1080p",
+      "subtitle": "Kiểm chứng độ chính xác thật trên Orange Pi 5 (trái) và giao điểm lựa chọn RGA vs Q11 theo độ phân giải (phải).",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/orangepi5_accuracy_and_resolution_parity.png",
+      "image_fit": "contain",
+      "image_source": "Team_A val2017 parity and resolution scaling chart (orangepi5_accuracy_and_resolution_parity.png)",
+      "cards": [
+        {"title": "Vượt Cả ONNX INT8 CPU", "body": "RKNN 6H Normal RGA (0.69744) & Q11 (0.69734) vượt ONNX INT8 (0.69392) và giữ 99.94% FP32.", "highlight": "winner"},
+        {"title": "F1@0.25 Vượt Chuẩn FP32", "body": "F1 = 0.6737 (Q11) / 0.6733 (RGA) so với 0.6706 của ONNX FP32; NegFP giảm còn 71–73 vs 82.", "highlight": "winner"},
+        {"title": "Luật Độ Phân Giải Rõ Rệt", "body": "480p: RGA thắng (124.64 vs 115.17 FPS); 720p/1080p: Q11 thắng (117.5–119.0 vs 90.5–109.0 FPS)."}
+      ],
+      "speaker_notes": "Khẳng định 100% 5,000 ảnh val2017 chạy trực tiếp trên thiết bị biên cho thấy độ chính xác không hề giảm sút khi chạy max speed."
+    },
+    {
+      "layout": "editable_table",
+      "kicker": "PHASE 2 • COMPLETE ORANGE PI 5 VERIFICATION MATRIX",
+      "title": "Bảng Kết Quả Chính Thức Trên Orange Pi 5 (5,000 Ảnh & 480p–1080p)",
+      "subtitle": "Toàn bộ thông số đo thực nghiệm trên bo mạch RK3588S (val2017_accuracy_parity.csv & resolution_before_after.csv).",
+      "columns": [
+        {"label": "Biến Thể Trên Orange Pi 5", "weight": 2.5},
+        {"label": "mAP@50", "weight": 1.0},
+        {"label": "AP_small", "weight": 1.0},
+        {"label": "F1 (@0.25)", "weight": 1.0},
+        {"label": "NegFP", "weight": 0.8},
+        {"label": "5K Wall (s)", "weight": 1.0},
+        {"label": "1C / 6W FPS", "weight": 1.5}
+      ],
+      "rows": [
+        {"cells": ["ONNX_FP32_Baseline (CPU)", "0.69785", "0.17915", "0.6706", "82", "244.56", "23.53 FPS"]},
+        {"cells": ["ONNX_INT8_Static_FastCPU", "0.69392", "0.17879", "0.6673", "76", "174.78", "33.22 FPS"]},
+        {"cells": ["RKNN_FP16_Uncut_NPU", "0.69689", "0.17778", "0.6692", "81", "119.67", "53.00 FPS"]},
+        {"cells": ["RKNN_INT8_Uncut_NPU", "0.00000", "0.00000", "0.0000", "0", "67.65", "108.50 (Fail)"], "highlight": "alert"},
+        {"cells": ["RKNN_INT8_6Head_MMSE_NC1", "0.69028", "0.17602", "0.6592", "61", "65.70", "8.69 ms E2E (1C)"]},
+        {"cells": ["RKNN_INT8_6Head_Hybrid_NC1", "0.69359", "0.17619", "0.6639", "70", "86.83", "12.87 ms / 207.6 (6W)"]},
+        {"cells": ["RKNN_INT8_6Head_Normal_NC1", "0.69734", "0.17881", "0.6737", "71", "65.57", "116.37 / 384.28"], "highlight": "winner"},
+        {"cells": ["RKNN_INT8_6Head_Normal_RGA*", "0.69744", "0.17826", "0.6733", "73", "63.55", "122.24 / 385.43"], "highlight": "winner"}
+      ],
+      "takeaway": "Theo độ phân giải: 480p RGA = 124.64 FPS (6W 385.62 FPS) | 720p Q11 = 117.54 FPS | 1080p Q11 = 119.02 FPS (6W 382.10 FPS).",
+      "speaker_notes": "Ghi chú thêm: bảng cho phép trình bày súc tích cả kết quả trên 5K ảnh val2017 lẫn năng lực FPS theo từng độ phân giải camera thực tế."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 4 • ROBOFLOW CCTV-NAXYO V2 BENCHMARK (3,737 IMGS)",
+      "title": "Kiểm Chứng Thực Địa Zero-Shot Trên Tập CCTV (640×640)",
+      "subtitle": "Chạy toàn bộ 3,737 ảnh Roboflow cctv-naxyo v2 trực tiếp trên Orange Pi 5 với kích hoạt RGA HW 100% (3,737/3,737 ảnh).",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/cctv_naxyo_benchmark.png",
+      "image_fit": "contain",
+      "image_source": "Team_A Roboflow cctv-naxyo v2 benchmark chart (cctv_naxyo_benchmark.png)",
+      "cards": [
+        {"title": "6H Normal RGA Vượt FP32", "body": "Đạt 0.55258 (All 3,737) và 0.68353 (Test 151) so với 0.54355 / 0.67081 của ONNX FP32.", "highlight": "winner"},
+        {"title": "Dynamic INT8 Rớt -11.8%", "body": "Độ chính xác tụt về 0.47923 trên môi trường CCTV thực tế; Uncut RKNN INT8 sụp 0.000.", "highlight": "alert"},
+        {"title": "Tốc Độ 640×640 Đạt 385.67 FPS", "body": "1C Min-Latency 8.178 ms (122.27 FPS) và 6W Max 385.67 FPS — nhanh 17.33× so với Before.", "highlight": "winner"}
+      ],
+      "speaker_notes": "Chứng minh mô hình tối ưu không bị quá khớp vào COCO: chạy trên tập camera CCTV chưa từng nhìn thấy vẫn vượt cả FP32 gốc và nhanh 17.3x."
+    },
+    {
+      "layout": "chart_hero",
+      "kicker": "PHASE 4 • DOMAIN SHIFT & THRESHOLD DIAGNOSIS",
+      "title": "Giải Mã Domain Shift CCTV, Tối Ưu conf=0.15 & Stage 640×640",
+      "subtitle": "Chẩn đoán vì sao mAP@50 thực địa là ~0.55 và cách RGA cắt -47.7% chi phí tiền xử lý tại 640×640.",
+      "image_path": "C:/Users/ttung05/Desktop/Team_A/reports/figures/cctv_naxyo_deep_diagnosis.png",
+      "image_fit": "contain",
+      "image_source": "Team_A cctv-naxyo deep diagnosis chart (cctv_naxyo_deep_diagnosis.png)",
+      "cards": [
+        {"title": "Lệch Miền Mạnh So Với COCO", "body": "cctv-naxyo có 99.5% ảnh chứa người (14,178 boxes), chỉ 14.6% box nhỏ (ít 2.8×), góc gắn trần + Stretch."},
+        {"title": "Precision ~87%, Tinh Chỉnh @0.15", "body": "Trọng số pretrained COCO giữ Precision 87% nhưng Recall ~38%; hạ conf 0.25→0.15 tăng F1 0.532→0.572.", "highlight": "winner"},
+        {"title": "RGA Cắt 47.7% Pre 640×640", "body": "Preprocess giảm 2.055 → 1.075 ms (Mean IoU vs FP32 = 0.920 Q11=0.930), giữ tổng 8.18 ms.", "highlight": "winner"}
+      ],
+      "speaker_notes": "Nhấn mạnh tính minh bạch khoa học: giải thích bằng số liệu phân phối chính xác thay vì giấu điểm Recall zero-shot trên góc camera overhead."
+    },
+    {
+      "layout": "dual_visuals",
+      "kicker": "FIELD EVIDENCE • REAL UNSEEN CAMERA MODALITIES",
+      "title": "Bằng Chứng Thực Địa Từ Tập Kiểm Thử cctv-naxyo v2 (`151` Ảnh Test)",
+      "subtitle": "Sự đa dạng khắc nghiệt của camera thực tế (góc gắn trần Stretch & camera hồng ngoại nhiệt đơn sắc) mà bản INT8 6Head vượt chuẩn FP32.",
+      "visuals": [
+        {
+          "title": "Cảnh Overhead Gắn Trần & Stretch 640×640",
+          "image_path": "C:/Users/ttung05/Desktop/Team_A/assets/verified_images/cctv_railway.jpg",
+          "image_fit": "contain",
+          "image_source": "Roboflow cctv-naxyo v2 Test Set (railway-759_jpg.rf.cf67018d8bbbccdf085778f1b3218c29.jpg)",
+          "caption": "Góc nhìn từ trên cao, mật độ người đông và biến dạng tỉ lệ đứng."
+        },
+        {
+          "title": "Cảnh Hồng Ngoại / Thermal IR CCTV Trong Nhà",
+          "image_path": "C:/Users/ttung05/Desktop/Team_A/assets/verified_images/cctv_thermal.jpg",
+          "image_fit": "contain",
+          "image_source": "Roboflow cctv-naxyo v2 Test Set (00505_jpg.rf.dcf5e37cf9f8cc974a2d0e5566cd34ae.jpg)",
+          "caption": "Ảnh đơn sắc thermal LWIR khác biệt hoàn toàn phổ màu RGB COCO."
+        }
+      ],
+      "takeaway": "Tổng kiểm chứng trên 11,437 ảnh duy nhất (>16,200 lượt đánh giá): 6Head Normal + ZeroCopy giữ ≥99.94% COCO FP32 và vượt 101.7% trên CCTV thực địa.",
+      "speaker_notes": "Hai ảnh thực địa nguyên bản chứng minh trực quan vì sao pretrained RGB Recall chạm trần ~38% nhưng quantize đúng chuẩn vẫn vững vàng vượt FP32."
+    },
+    {
+      "layout": "cards_grid",
+      "kicker": "PRODUCTION PLAYBOOK & PHASE 5 ROADMAP",
+      "title": "Kiến Trúc Triển Khai Sản Xuất Ngay & Lộ Trình Nâng Cấp Tiếp Theo",
+      "subtitle": "Khuyến nghị vận hành thực chiến cho hệ thống camera AI trên Orange Pi 5 (`RK3588S`) và bước tối ưu kiến trúc kế tiếp.",
+      "cards": [
+        {"tag": "01 • CHỐT MODEL", "title": "6Head Normal + ZC NC1", "body": "Dùng model_int8_6head_normal.rknn (hoặc bản nén SC 3.56 MiB / 5.16 MB DMA), đặt conf = 0.15 cho camera giám sát.", "highlight": "winner"},
+        {"tag": "02 • AUTO PREPROC", "title": "Router Theo Độ Phân Giải", "body": "Camera <=640px (480p / CCTV): bật 2D RGA (122–125 FPS 1C). Nguồn >=720p từ RAM: chọn Q11 LUT (117.5–119 FPS 1C).", "highlight": "winner"},
+        {"tag": "03 • SYSTEM & VDEC", "title": "Performance + MPP HW", "body": "Khóa performance governor + pin 4× A76. Luồng 1080p phải dùng MPP HW VDEC / NV12 DMA thay CPU cv2.imdecode (18.7 ms)."},
+        {"tag": "04 • PHASE 5 FUTURE", "title": "Fine-Tune & Re-Arch Backbone", "body": "Fine-tune trên 3,060 ảnh cctv-naxyo/train vượt trần Recall 38%; thử tối ưu lại Stem M0 (2.25% MAC) & C2PSA exSoftmax13."}
+      ],
+      "speaker_notes": "Tổng kết 4 hành động cụ thể: 3 bước đưa vào vận hành sản xuất ngay hôm nay và 1 hướng nghiên cứu Phase 5 cho nhóm kỹ thuật."
+    }
+  ]
+}

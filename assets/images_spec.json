@@ -1,0 +1,37 @@
+[
+  {
+    "id": "rk3588_chip",
+    "url": "https://upload.wikimedia.org/wikipedia/commons/4/49/Rockchip_RK3588.jpeg",
+    "min_width": 600,
+    "min_height": 600,
+    "credit": "Wikimedia Commons - Rockchip RK3588 SoC"
+  },
+  {
+    "id": "opi5_board_v13",
+    "url": "http://www.orangepi.org/img/pi5-fix/pi5-01.png",
+    "min_width": 500,
+    "min_height": 400,
+    "credit": "Official Orange Pi 5 Product Image (orangepi.org)"
+  },
+  {
+    "id": "opi5_board_v12",
+    "url": "http://www.orangepi.org/orangepiwiki/images/7/7f/Pi-5-details-pic01.png",
+    "min_width": 500,
+    "min_height": 400,
+    "credit": "Official Orange Pi 5 Wiki Hardware Photo (orangepi.org)"
+  },
+  {
+    "id": "cctv_railway",
+    "path": "C:\\Users\\ttung05\\Desktop\\Team_A\\datasets\\cctv-naxyo\\test\\railway-759_jpg.rf.cf67018d8bbbccdf085778f1b3218c29.jpg",
+    "min_width": 400,
+    "min_height": 400,
+    "credit": "Roboflow cctv-naxyo v2 Test Set - Overhead Pedestrian Scene"
+  },
+  {
+    "id": "cctv_thermal",
+    "path": "C:\\Users\\ttung05\\Desktop\\Team_A\\datasets\\cctv-naxyo\\test\\00505_jpg.rf.dcf5e37cf9f8cc974a2d0e5566cd34ae.jpg",
+    "min_width": 400,
+    "min_height": 400,
+    "credit": "Roboflow cctv-naxyo v2 Test Set - Thermal IR CCTV Scene"
+  }
+]

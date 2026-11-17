@@ -1050,6 +1050,355 @@ def plot_master_synthesis_dashboard(
     plt.close(fig)
 
 
+def plot_quantization_speed_and_compression(
+    pc_csv: Path,
+    op5_acc_csv: Path,
+    op5_lat_csv: Path,
+    op5_dir: Path,
+    out_path: Path,
+) -> None:
+    """Plot Before/After quantization speed on PC + Orange Pi 5 and model/DMA/DDR compression."""
+    df_pc = pd.read_csv(pc_csv)
+    df_va = pd.read_csv(op5_acc_csv)
+    df_vl = pd.read_csv(op5_lat_csv)
+    int8_layers = _parse_rknn_perf_layers(op5_dir / "pd_uncut_normal.txt")
+    fp16_layers = _parse_rknn_perf_layers(op5_dir / "pd_fp16_uncut.txt")
+    ddr_i8_mb = sum(float(r["rw_kb"]) for r in int8_layers) / 1024.0
+    ddr_f16_mb = sum(float(r["rw_kb"]) for r in fp16_layers) / 1024.0
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18.4, 5.6), dpi=160)
+
+    # Panel 1: PC 7,500-Image Inference Throughput (ORT CPU vs GPU baseline annotation)
+    pc_spec = [
+        ("ONNX_FP32_1cls_Baseline", "ONNX FP32\n(CPU Ref)", "#475569"),
+        ("ONNX_FP16", "ONNX FP16\n(CPU)", "#64748b"),
+        ("ONNX_INT8_Dynamic", "Dynamic INT8\n(-27.8% Slow!)", "#e11d48"),
+        ("INT8_StdMix_Percentile9999_C200", "Static StdMix\nPct99.99", "#3b82f6"),
+        ("INT8_HeadM0M1M2_Pct99995_C200", "Static Opt*\n(Head+M0-2)", "#059669"),
+    ]
+    sub_pc = df_pc.set_index("variant").loc[[k for k, _, _ in pc_spec]].reset_index()
+    x1 = np.arange(len(sub_pc))
+    b1 = ax1.bar(x1, sub_pc["throughput_img_s"], color=[c for _, _, c in pc_spec], width=0.58)
+    for bar, r in zip(b1, sub_pc.itertuples()):
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2,
+            r.throughput_img_s + 20,
+            f"{r.throughput_img_s:.1f} img/s\n({r.eval_time_s:.2f}s)",
+            ha="center",
+            va="bottom",
+            fontsize=7.3,
+            fontweight="bold",
+        )
+    ax1.axhline(float(sub_pc["throughput_img_s"].iloc[0]), color="#334155", linestyle="--", linewidth=0.9, alpha=0.6)
+    ax1.set_xticks(x1)
+    ax1.set_xticklabels([lbl for _, lbl, _ in pc_spec], fontsize=7.6)
+    ax1.set_ylim(0, max(sub_pc["throughput_img_s"]) * 1.24)
+    ax1.set_ylabel("PC Evaluation Throughput (img/s, 7,500 imgs)")
+    ax1.set_title("PC Before vs After Quantization Speed (ORT CPU)\nDynamic INT8 slows -27.8%; Static Opt +38.6%!")
+    ax1.grid(axis="y", alpha=0.25)
+
+    # Panel 2: Full 5,000-Image COCO val2017 Total Evaluation Time on Orange Pi 5
+    va_spec = [
+        ("ONNX_FP32_Baseline", "ONNX FP32\n(CPU)", "#64748b"),
+        ("ONNX_INT8_Static_Before", "ONNX INT8\nBefore", "#94a3b8"),
+        ("ONNX_INT8_Static_FastCPU", "ONNX INT8\nFastCPU", "#3b82f6"),
+        ("RKNN_FP16_Uncut_NPU", "RKNN FP16\nUncut NPU", "#f59e0b"),
+        ("RKNN_INT8_6Head_Hybrid_ZeroCopy_NC1", "RKNN 6H\nHybrid", "#8b5cf6"),
+        ("RKNN_INT8_6Head_Normal_ZeroCopy_NC1", "RKNN 6H\nQ11 NPU", "#10b981"),
+        ("RKNN_INT8_6Head_Normal_RGA_HW", "RKNN 6H\nRGA NPU*", "#059669"),
+    ]
+    sub_va = df_va.set_index("variant").loc[[k for k, _, _ in va_spec]].reset_index()
+    x2 = np.arange(len(sub_va))
+    b2 = ax2.bar(x2, sub_va["eval_wall_s"], color=[c for _, _, c in va_spec], width=0.58)
+    for bar, r in zip(b2, sub_va.itertuples()):
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2,
+            r.eval_wall_s + 4.5,
+            f"{r.eval_wall_s:.1f}s\n({r.mean_e2e_ms:.1f}ms)",
+            ha="center",
+            va="bottom",
+            fontsize=6.9,
+            fontweight="bold",
+        )
+    ax2.set_xticks(x2)
+    ax2.set_xticklabels([lbl for _, lbl, _ in va_spec], fontsize=7.3)
+    ax2.set_ylim(0, max(sub_va["eval_wall_s"]) * 1.22)
+    ax2.set_ylabel("Total Wall Time for 5,000 val2017 Imgs (s)")
+    ax2.set_title("Orange Pi 5 End-to-End Speed on 5,000 COCO val2017\n3.85x Faster Including Disk JPEG Read (244.6s -> 63.6s)")
+    ax2.grid(axis="y", alpha=0.25)
+
+    # Panel 3: Memory Footprint Reduction (Model Disk MiB vs DMA MiB vs NPU DDR RW MB)
+    sz_fp32 = float(df_pc[df_pc["variant"] == "ONNX_FP32_1cls_Baseline"]["size_mb"].iloc[0])
+    sz_i8_onnx = float(df_pc[df_pc["variant"] == "INT8_HeadM0M1M2_Pct99995_C200"]["size_mb"].iloc[0])
+    sz_fp16_rk = float(df_vl[df_vl["config"] == "5_NPU_FP16_Uncut_Copy_1Core"]["size_mb"].iloc[0])
+    dma_fp16 = float(df_vl[df_vl["config"] == "5_NPU_FP16_Uncut_Copy_1Core"]["dma_mb"].iloc[0])
+    sz_6h = float(df_vl[df_vl["config"] == "8_NPU_INT8_6Head_ZeroCopy_NC1_1Core"]["size_mb"].iloc[0])
+    dma_6h = float(df_vl[df_vl["config"] == "8_NPU_INT8_6Head_ZeroCopy_NC1_1Core"]["dma_mb"].iloc[0])
+    sz_sc = float(df_vl[df_vl["config"] == "8b_NPU_INT8_6Head_SCMode_ZeroCopy_1Core"]["size_mb"].iloc[0])
+    dma_sc = float(df_vl[df_vl["config"] == "8b_NPU_INT8_6Head_SCMode_ZeroCopy_1Core"]["dma_mb"].iloc[0])
+
+    cats = ["Model Weight\nONNX\n(FP32 -> INT8)", "RKNN Edge Model\n(FP16 -> 6H -> SC)", "DMA Runtime Buf\n(FP16 -> 6H -> SC)", "NPU DDR Traffic\nPer Frame\n(FP16 -> INT8)"]
+    # Grouped bars showing Before vs After (and Optional SC) clearly via horizontal grouped layout
+    res_labels = [
+        "ONNX File (MiB)",
+        "RKNN File (MiB)",
+        "NPU DMA Buf (MiB)",
+        "NPU DDR R/W (MB)",
+    ]
+    before_v = [sz_fp32, sz_fp16_rk, dma_fp16, ddr_f16_mb]
+    after_v = [sz_i8_onnx, sz_6h, dma_6h, ddr_i8_mb]
+    sc_v = [sz_i8_onnx, sz_sc, dma_sc, ddr_i8_mb]
+
+    y3 = np.arange(len(res_labels))
+    bh = 0.32
+    ax3.barh(y3 + bh / 2, before_v, height=bh, label="Before (FP32 / FP16 NPU)", color="#64748b")
+    ax3.barh(y3 - bh / 2, after_v, height=bh, label="After INT8 Opt (SC = 3.56 / 5.16 MiB)", color="#059669")
+    for idx, (bv, av, sv) in enumerate(zip(before_v, after_v, sc_v)):
+        pct = 100.0 * (av - bv) / bv
+        ax3.text(bv + 0.4, idx + bh / 2, f"{bv:.2f}", va="center", fontsize=7.6, color="#334155", fontweight="bold")
+        sc_note = f" / SC {sv:.2f}" if abs(sv - av) > 0.05 else ""
+        ax3.text(av + 0.4, idx - bh / 2, f"{av:.2f}{sc_note} ({pct:.0f}%)", va="center", fontsize=7.6, color="#065f46", fontweight="bold")
+    ax3.set_yticks(y3)
+    ax3.set_yticklabels(res_labels, fontsize=8.0)
+    ax3.set_xlim(0, max(before_v) * 1.24)
+    ax3.set_xlabel("Size / Memory Traffic per Frame (MiB or MB)")
+    ax3.set_title("Model & Memory Bandwidth Compression\n-65.6% File | -61.3% DMA (SC) | -48.0% NPU DDR")
+    ax3.legend(loc="lower right", fontsize=7.2)
+    ax3.grid(axis="x", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close(fig)
+
+
+def plot_backbone_optimization_and_mac_profile(
+    op5_dir: Path,
+    op5_acc_csv: Path,
+    op5_lat_csv: Path,
+    out_path: Path,
+) -> None:
+    """Plot stage-wise Backbone/Head latency evolution, RK3588 MAC% & DDR efficiency, and subgraph cut impact."""
+    anat = json.loads((op5_dir / "latency_anatomy.json").read_text(encoding="utf-8"))
+    df_a = pd.read_csv(op5_acc_csv)
+    df_l = pd.read_csv(op5_lat_csv)
+
+    def _agg_stages(perf_file: Path) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+        rows = _parse_rknn_perf_layers(perf_file)
+        st_us: dict[str, float] = {"Stem M0-M2": 0.0, "Backbone M3-M9": 0.0, "C2PSA M10+M22": 0.0, "Neck M11-M21": 0.0, "Head Conv6H": 0.0, "Head DFL Tail": 0.0}
+        st_rw: dict[str, float] = {k: 0.0 for k in st_us}
+        mac_acc: dict[str, list[float]] = {k: [] for k in st_us}
+        for r in rows:
+            fn = str(r["full_name"])
+            if any(k in fn for k in ["/model.0/", "/model.1/", "/model.2/"]):
+                stg = "Stem M0-M2"
+            elif any(f"/model.{i}/" in fn for i in range(3, 10)):
+                stg = "Backbone M3-M9"
+            elif "/model.10/" in fn or "/model.22/" in fn:
+                stg = "C2PSA M10+M22"
+            elif any(f"/model.{i}/" in fn for i in range(11, 22)):
+                stg = "Neck M11-M21"
+            elif "/model.23/cv" in fn:
+                stg = "Head Conv6H"
+            elif "/model.23/" in fn or "output0" in fn:
+                stg = "Head DFL Tail"
+            else:
+                continue
+            st_us[stg] += float(r["time_us"])
+            st_rw[stg] += float(r["rw_kb"]) / 1024.0
+            if str(r["op_type"]).startswith("Conv"):
+                mac_acc[stg].append(float(r["mac_pct"]))
+        st_mac = {k: (float(np.mean(v)) if v else 0.0) for k, v in mac_acc.items()}
+        return st_us, st_rw, st_mac
+
+    i8_us, i8_rw, i8_mac = _agg_stages(op5_dir / "pd_uncut_normal.txt")
+    f16_us, _, f16_mac = _agg_stages(op5_dir / "pd_fp16_uncut.txt")
+    fp_ort = anat["ort_profiling"]["onnx_fp32"]["by_module_ms"]
+    i8_ort = anat["ort_profiling"]["onnx_int8_static"]["by_module_ms"]
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18.6, 5.7), dpi=160)
+
+    # Panel 1: Network Stage Compute Progression (ORT FP32 -> ORT INT8 -> RKNN FP16 -> RKNN INT8 6Head)
+    stg_labels = ["Stem\nM0-M2", "Backbone\nM3-M9", "C2PSA\nM10+M22", "Neck\nM11-M21", "Head\nConv6H", "DFL Tail\n(Cut!)"]
+    v_ort_f32 = [fp_ort["Stem_M0_M2_FP32_Protected"], fp_ort["Backbone_M3_M9"], fp_ort["C2PSA_Attention_M10"], fp_ort["Neck_FPN_PAN_M11_M22"], fp_ort["Head_DFL_M23_FP32"], 0.0]
+    v_ort_i8 = [i8_ort["Stem_M0_M2_FP32_Protected"], i8_ort["Backbone_M3_M9"], i8_ort["C2PSA_Attention_M10"], i8_ort["Neck_FPN_PAN_M11_M22"], i8_ort["Head_DFL_M23_FP32"], i8_ort.get("Graph_Fused_OR_IO", 0.0)]
+    v_rk_f16 = [f16_us[k] / 1000.0 for k in ["Stem M0-M2", "Backbone M3-M9", "C2PSA M10+M22", "Neck M11-M21", "Head Conv6H", "Head DFL Tail"]]
+    v_rk_i8 = [i8_us["Stem M0-M2"] / 1000.0, i8_us["Backbone M3-M9"] / 1000.0, i8_us["C2PSA M10+M22"] / 1000.0, i8_us["Neck M11-M21"] / 1000.0, i8_us["Head Conv6H"] / 1000.0, 0.0]
+
+    x1 = np.arange(len(stg_labels))
+    w1 = 0.20
+    for idx_m, (mlbl, mvals, mcol) in enumerate([
+        ("ORT FP32 (CPU)", v_ort_f32, "#64748b"),
+        ("ORT INT8 (CPU)", v_ort_i8, "#3b82f6"),
+        ("RKNN FP16 (NPU)", v_rk_f16, "#f59e0b"),
+        ("RKNN INT8 6Head*", v_rk_i8, "#059669"),
+    ]):
+        bars = ax1.bar(x1 + (idx_m - 1.5) * w1, mvals, width=w1, label=mlbl, color=mcol)
+        if idx_m == 3:
+            for b, val in zip(bars, mvals):
+                txt = "CUT" if val == 0.0 else f"{val:.2f}"
+                ax1.text(b.get_x() + b.get_width() / 2, val + 0.40, txt, ha="center", va="bottom", fontsize=6.5, fontweight="bold", color="#065f46")
+    ax1.set_xticks(x1)
+    ax1.set_xticklabels(stg_labels, fontsize=7.6)
+    ax1.set_ylim(0, max(v_ort_f32) * 1.18)
+    ax1.set_ylabel("Stage Execution Time (ms)")
+    ax1.set_title("Per-Stage Latency Evolution Across Architecture\nBackbone M3-M9 Drops 14.3ms -> 2.05ms on NPU!")
+    ax1.legend(loc="upper right", fontsize=7.1)
+    ax1.grid(axis="y", alpha=0.25)
+
+    # Panel 2: RK3588S NPU Hardware Efficiency (Avg Conv MAC% vs DDR RW MB per Stage)
+    st_keys2 = ["Stem M0-M2", "Backbone M3-M9", "C2PSA M10+M22", "Neck M11-M21", "Head Conv6H", "Head DFL Tail"]
+    st_lbls2 = ["Stem\nM0-M2", "Backbone\nM3-M9", "C2PSA\nM10+M22", "Neck\nM11-M21", "Head\nConv6H", "DFL Tail\n(Cut 157us CPU)"]
+    macs2 = [i8_mac[k] for k in st_keys2]
+    rws2 = [i8_rw[k] for k in st_keys2]
+    x2 = np.arange(len(st_keys2))
+    ax2_r = ax2.twinx()
+    b_mac = ax2.bar(x2 - 0.18, macs2, width=0.36, label="Avg Conv MAC Usage (%)", color="#2563eb", alpha=0.88)
+    b_rw = ax2_r.bar(x2 + 0.18, rws2, width=0.36, label="Stage DDR R/W (MB)", color="#f59e0b", alpha=0.88)
+    for b, v in zip(b_mac, macs2):
+        ax2.text(b.get_x() + b.get_width() / 2, v + 0.8, f"{v:.1f}%", ha="center", va="bottom", fontsize=7.0, color="#1e3a8a", fontweight="bold")
+    for b, v in zip(b_rw, rws2):
+        ax2_r.text(b.get_x() + b.get_width() / 2, v + 0.12, f"{v:.2f}MB", ha="center", va="bottom", fontsize=6.8, color="#92400e", fontweight="bold")
+    ax2.set_xticks(x2)
+    ax2.set_xticklabels(st_lbls2, fontsize=7.2)
+    ax2.set_ylim(0, 48)
+    ax2_r.set_ylim(0, 6.8)
+    ax2.set_ylabel("Avg NPU Conv MAC Utilization (%)", color="#1e3a8a")
+    ax2_r.set_ylabel("DDR Read/Write Traffic per Stage (MB)", color="#92400e")
+    ax2.set_title("RK3588S Backbone & Head Hardware Efficiency\nBackbone (24.9%) & C2PSA (22.4%) Lead Conv MAC; M0=2.25%")
+    h1, l1 = ax2.get_legend_handles_labels()
+    h2, l2 = ax2_r.get_legend_handles_labels()
+    ax2.legend(h1 + h2, l1 + l2, loc="upper right", fontsize=7.0)
+    ax2.grid(axis="y", alpha=0.25)
+
+    # Panel 3: Subgraph Variants Comparison (Uncut vs Hybrid vs 6Head Normal vs SCMode)
+    # Using directly observed values from latency_fps_before_after.csv & val2017_accuracy_parity.csv & cpp_microbench_log
+    sub_names = ["FP16\nUncut", "INT8\nUncut\n(mAP=0!)", "INT8 6H\nHybrid\n(+Cast Tax)", "INT8 6H\nNormal*\n(Optimal)", "INT8 6H\nSC Mode\n(3.56MiB)"]
+    inf_1c = [
+        float(df_l[df_l["config"] == "5_NPU_FP16_Uncut_Copy_1Core"]["inf_ms"].iloc[0]),
+        float(df_l[df_l["config"] == "5b_NPU_INT8_Uncut_Copy_1Core"]["inf_ms"].iloc[0]),
+        11.304,  # Verified IO_TAX ZC NC1 for model_int8_6head_hybrid.rknn
+        float(df_l[df_l["config"] == "10_NPU_INT8_6Head_ZeroCopy_NC1_RGA_1Core"]["inf_ms"].iloc[0]),
+        float(df_l[df_l["config"] == "8b_NPU_INT8_6Head_SCMode_ZeroCopy_1Core"]["inf_ms"].iloc[0]),
+    ]
+    map50_v = [
+        float(df_a[df_a["variant"] == "RKNN_FP16_Uncut_NPU"]["mAP50"].iloc[0]),
+        float(df_a[df_a["variant"] == "RKNN_INT8_Uncut_NPU"]["mAP50"].iloc[0]),
+        float(df_a[df_a["variant"] == "RKNN_INT8_6Head_Hybrid_ZeroCopy_NC1"]["mAP50"].iloc[0]),
+        float(df_a[df_a["variant"] == "RKNN_INT8_6Head_Normal_RGA_HW"]["mAP50"].iloc[0]),
+        float(df_a[df_a["variant"] == "RKNN_INT8_6Head_Normal_SC_ZeroCopy_NC1"]["mAP50"].iloc[0]),
+    ]
+    x3 = np.arange(len(sub_names))
+    ax3_r = ax3.twinx()
+    cols3 = ["#64748b", "#ef4444", "#f59e0b", "#059669", "#10b981"]
+    b_inf = ax3.bar(x3 - 0.18, inf_1c, width=0.35, color=cols3, label="NPU Inf Latency 1C (ms)")
+    b_map = ax3_r.bar(x3 + 0.18, map50_v, width=0.35, color="#2563eb", alpha=0.82, label="val2017 mAP@50 (5K)")
+    for b, v in zip(b_inf, inf_1c):
+        ax3.text(b.get_x() + b.get_width() / 2, v + 0.25, f"{v:.2f}ms", ha="center", va="bottom", fontsize=6.9, fontweight="bold")
+    for b, v in zip(b_map, map50_v):
+        ax3_r.text(b.get_x() + b.get_width() / 2, v + 0.015, f"{v:.3f}", ha="center", va="bottom", fontsize=6.9, color="#1e3a8a", fontweight="bold")
+    ax3.set_xticks(x3)
+    ax3.set_xticklabels(sub_names, fontsize=7.3)
+    ax3.set_ylim(0, 15.2)
+    ax3_r.set_ylim(0, 0.85)
+    ax3.set_ylabel("NPU Kernel Time 1-Core (ms)")
+    ax3_r.set_ylabel("COCO val2017 mAP@50 (5,000 Imgs)", color="#1e3a8a")
+    ax3.set_title("Subgraph Cut Impact: 6-Head Eliminates 5 CPU Reshapes\n& Hybrid Cast Tax (+4.19ms), Keeping mAP@50=0.6974")
+    h1, l1 = ax3.get_legend_handles_labels()
+    h2, l2 = ax3_r.get_legend_handles_labels()
+    ax3.legend(h1 + h2, l1 + l2, loc="upper right", fontsize=6.8)
+    ax3.grid(axis="y", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close(fig)
+
+
+def plot_calibration_methods_and_error_bounds(
+    pc_csv: Path,
+    op5_acc_csv: Path,
+    out_path: Path,
+) -> None:
+    """Plot PC calibration/protection probe error (box MAE, IoU) and Orange Pi 5 RKNN calib methods (Normal/MMSE/KL/Hybrid)."""
+    df_pc = pd.read_csv(pc_csv)
+    df_va = pd.read_csv(op5_acc_csv)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16.5, 5.6), dpi=160)
+
+    # Panel 1: PC Test_7500 Raw Probe Box MAE (px) & Mean IoU vs FP32 across Calibration Methods
+    pc_order = [
+        ("ONNX_INT8_Static_Naive", "Naive\nMinMax"),
+        ("INT8_StdMix_MinMax_C200", "StdMix\nMinMax"),
+        ("ONNX_INT8_Dynamic", "Dynamic\nINT8"),
+        ("INT8_StdMix_Percentile9999_C200", "StdMix\nPct99.99"),
+        ("INT8_HeadOnly_Pct9999_C200", "HeadOnly\nPct99.99"),
+        ("INT8_HeadM0M1M2_Pct9999_C200", "Head+M0-2\nPct99.99"),
+        ("INT8_HeadM0M1M2_Pct99995_C200", "Head+M0-2\nPct99.995*"),
+        ("INT8_SensM1M2M16M4_Pct99995_C200", "+M4+M16\nPct99.995"),
+    ]
+    sub_p = df_pc.set_index("variant").loc[[k for k, _ in pc_order]].reset_index()
+    x1 = np.arange(len(sub_p))
+    ax1_r = ax1.twinx()
+    cols1 = ["#e11d48" if i == 0 else "#f59e0b" if i <= 2 else "#3b82f6" if i <= 5 else "#059669" for i in range(len(sub_p))]
+    bars1 = ax1.bar(x1 - 0.16, sub_p["probe_box_mae"], width=0.45, color=cols1, label="Raw Box MAE vs FP32 (px)")
+    ax1_r.plot(x1 + 0.12, sub_p["mean_iou_vs_fp32"], "-D", color="#0f172a", linewidth=1.8, markersize=6, label="Mean IoU vs FP32")
+    for b, v in zip(bars1, sub_p["probe_box_mae"]):
+        ax1.text(b.get_x() + b.get_width() / 2, v + 0.18, f"{v:.2f}px", ha="center", va="bottom", fontsize=7.0, fontweight="bold")
+    for xi, (iou, nfp) in enumerate(zip(sub_p["mean_iou_vs_fp32"], sub_p["neg_fp_boxes"])):
+        if xi == 0:
+            ax1_r.text(xi + 0.32, iou + 0.015, "IoU=0.00", ha="left", fontsize=6.8, color="#be123c", fontweight="bold")
+        elif xi % 2 == 1:
+            ax1_r.text(xi + 0.12, iou + 0.032, f"{iou:.3f}\n({int(nfp)} FP)", ha="center", va="bottom", fontsize=6.4, color="#0f172a")
+        else:
+            ax1_r.text(xi + 0.12, iou - 0.032, f"{iou:.3f}\n({int(nfp)} FP)", ha="center", va="top", fontsize=6.4, color="#0f172a")
+    ax1.set_xticks(x1)
+    ax1.set_xticklabels([lbl for _, lbl in pc_order], fontsize=7.4)
+    ax1.set_ylim(0, 10.6)
+    ax1_r.set_ylim(-0.05, 1.15)
+    ax1.set_ylabel("Probe Raw Box Coordinate MAE vs FP32 (px)")
+    ax1_r.set_ylabel("Mean Box IoU Alignment with FP32")
+    ax1.set_title("PC Calibration Fidelity: Box Localization Error & FP32 IoU Parity\nPercentile 99.995% + M0-M2 Cuts Box Drift 9.12px -> 1.67px")
+    h1, l1 = ax1.get_legend_handles_labels()
+    h2, l2 = ax1_r.get_legend_handles_labels()
+    ax1.legend(h1 + h2, l1 + l2, loc="center right", fontsize=7.5)
+    ax1.grid(axis="y", alpha=0.25)
+
+    # Panel 2: Orange Pi 5 RKNN Quantization Algorithm Comparison on 5,000 val2017 Images
+    va_order = [
+        ("ONNX_FP32_Baseline", "ONNX FP32\n(Ref)"),
+        ("ONNX_INT8_Static_FastCPU", "ONNX INT8\nFastCPU"),
+        ("RKNN_FP16_Uncut_NPU", "RKNN FP16\nUncut"),
+        ("RKNN_INT8_6Head_MMSE_ZeroCopy_NC1", "RKNN 6H\nMMSE"),
+        ("RKNN_INT8_6Head_KL_ZeroCopy_NC1", "RKNN 6H\nKL Div"),
+        ("RKNN_INT8_6Head_Hybrid_ZeroCopy_NC1", "RKNN 6H\nHybrid"),
+        ("RKNN_INT8_6Head_Normal_ZeroCopy_NC1", "RKNN 6H\nNormal Q11*"),
+        ("RKNN_INT8_6Head_Normal_RGA_HW", "RKNN 6H\nNormal RGA*"),
+    ]
+    sub_v = df_va.set_index("variant").loc[[k for k, _ in va_order]].reset_index()
+    x2 = np.arange(len(sub_v))
+    bw2 = 0.25
+    for off_i, (col_k, lbl, col) in enumerate([
+        ("mAP50", "COCO mAP@50", "#2563eb"),
+        ("op_f1", "F1 @ conf=0.25", "#059669"),
+        ("op_recall", "Recall @ conf=0.25", "#f59e0b"),
+    ]):
+        bars = ax2.bar(x2 + (off_i - 1.0) * bw2, sub_v[col_k], width=bw2, label=lbl, color=col)
+        for b, v in zip(bars, sub_v[col_k]):
+            ax2.text(b.get_x() + b.get_width() / 2, v + 0.0025, f"{v:.3f}", ha="center", va="bottom", fontsize=6.0, rotation=50)
+    for i, r in enumerate(sub_v.itertuples()):
+        ax2.text(i, 0.502, f"NegFP={int(r.neg_fp_boxes)}", ha="center", fontsize=6.4, color="#334155", fontweight="bold")
+    ax2.set_xticks(x2)
+    ax2.set_xticklabels([lbl for _, lbl in va_order], fontsize=7.4)
+    ax2.set_ylim(0.495, 0.775)
+    ax2.set_ylabel("5,000-Image COCO val2017 Accuracy Metric")
+    ax2.set_title("Orange Pi 5 RKNN Calibration Algorithms (5,000 val2017 Imgs)\nNormal Preserves Recall (0.550) & F1 (0.674) Best vs MMSE/KL")
+    ax2.legend(loc="upper right", ncol=3, fontsize=7.4)
+    ax2.grid(axis="y", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close(fig)
+
+
 def main() -> None:
     fig_dir = REPO_ROOT / "reports" / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -1077,6 +1426,25 @@ def main() -> None:
         )
     if (op5_dir / "pd_uncut_normal.txt").exists() and (op5_dir / "cpp_microbench_log.txt").exists():
         plot_hardware_npu_deep_dive(op5_dir, fig_dir / "orangepi5_hardware_npu_deep_dive.png")
+    if (op5_dir / "val2017_accuracy_parity.csv").exists() and (op5_dir / "latency_fps_before_after.csv").exists():
+        plot_quantization_speed_and_compression(
+            REPO_ROOT / "results" / "full_7500_ablation_report.csv",
+            op5_dir / "val2017_accuracy_parity.csv",
+            op5_dir / "latency_fps_before_after.csv",
+            op5_dir,
+            fig_dir / "quantization_speed_and_compression.png",
+        )
+        plot_backbone_optimization_and_mac_profile(
+            op5_dir,
+            op5_dir / "val2017_accuracy_parity.csv",
+            op5_dir / "latency_fps_before_after.csv",
+            fig_dir / "backbone_optimization_and_mac_profile.png",
+        )
+        plot_calibration_methods_and_error_bounds(
+            REPO_ROOT / "results" / "full_7500_ablation_report.csv",
+            op5_dir / "val2017_accuracy_parity.csv",
+            fig_dir / "calibration_methods_and_error_bounds.png",
+        )
     cctv_dir = REPO_ROOT / "results" / "cctv_naxyo_orangepi5"
     if (cctv_dir / "cctv_naxyo_accuracy.csv").exists():
         plot_cctv_naxyo(
