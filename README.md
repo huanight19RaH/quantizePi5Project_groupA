@@ -119,4 +119,5 @@ python scripts/evaluate_7500.py
 5. [Báo Cáo Thực Nghiệm Before vs After Tối Ưu Inference Trên Orange Pi 5 (`5,000` val2017 + C++ Zero-Copy/RGA/3-Core NPU)](reports/05_orangepi5_before_after_optimization_report.md)
 6. [Giải Phẫu & Bóc Tách Toàn Bộ Thành Phần Cấu Tạo Nên Latency Trên Orange Pi 5](reports/06_latency_anatomy_and_component_breakdown.md)
 7. [Đánh Giá Thực Nghiệm Trên Bộ Dữ Liệu Roboflow `cctv-naxyo v2` (`3,737` Ảnh CCTV)](reports/07_roboflow_cctv_naxyo_benchmark_report.md)
-8. [Benchmark Report Tổng hợp (Chuẩn Hackathon)](benchmark_report.md)
+8. [Báo Cáo Trực Quan Hóa Toàn Bộ Kết Quả (`11` Biểu Đồ Tổng Hợp A→Z)](reports/08_complete_visual_dashboard_report.md)
+9. [Benchmark Report Tổng hợp (Chuẩn Hackathon)](benchmark_report.md)
