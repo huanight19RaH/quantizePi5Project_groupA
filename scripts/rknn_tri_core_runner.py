@@ -317,21 +317,138 @@ def benchmark_tri_core_pipeline(
     print("===================================================\n")
 
 
+def run_camera_tri_core(
+    rknn_model_path: str,
+    camera_source: str = "0",
+    imgsz: int = 416,
+    max_frames: int = 0,
+    conf_thres: float = 0.30,
+    iou_thres: float = 0.45,
+    save_video: str | None = None,
+):
+    """Run real-time camera inference using Tri-Core NPU and CPU affinity."""
+    model_p = Path(rknn_model_path)
+    if not model_p.exists():
+        print(f"[ERROR] RKNN model not found: {model_p}")
+        return
+
+    cap_src = int(camera_source) if camera_source.isdigit() else camera_source
+    cap = cv2.VideoCapture(cap_src)
+    if not cap.isOpened():
+        print(f"[ERROR] Cannot open camera source: {camera_source}")
+        return
+
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"\n[Camera Init] Opened source `{camera_source}`: {w}x{h}")
+    print(f"Target model resolution: {imgsz}x{imgsz} across 3 NPU Cores")
+
+    npu_pool = TriCoreNPUWorkerPool(str(model_p))
+
+    writer = None
+    if save_video:
+        writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (w, h))
+
+    frames = 0
+    t_start = time.perf_counter()
+    ema_fps = 0.0
+
+    pending = []
+    try:
+        while True:
+            t0 = time.perf_counter()
+            set_thread_affinity(aux_cpus())
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            inp_rgb, scale, pad_l, pad_t = letterbox_fast(frame, target_size=imgsz)
+            inp_tensor = np.expand_dims(inp_rgb, axis=0)
+
+            fut = npu_pool.infer_async(inp_tensor)
+            pending.append((fut, frame, scale, pad_l, pad_t, t0))
+
+            if len(pending) >= 3:
+                f_item, f_frame, f_scale, f_pad_l, f_pad_t, f_t0 = pending.pop(0)
+                outs = f_item.result()
+
+                set_thread_affinity(inference_cpus())
+                dets = postprocess_person(outs[0], conf_thres=conf_thres, iou_thres=iou_thres)
+
+                t_e2e = (time.perf_counter() - f_t0) * 1000.0
+                curr_fps = 1000.0 / t_e2e if t_e2e > 0 else 0.0
+                ema_fps = curr_fps if ema_fps == 0.0 else (0.9 * ema_fps + 0.1 * curr_fps)
+
+                for d in dets:
+                    bx, by, bw, bh = d["box"]
+                    # Map back to original frame
+                    orig_x1 = max(0, int(round((bx - f_pad_l) / f_scale)))
+                    orig_y1 = max(0, int(round((by - f_pad_t) / f_scale)))
+                    orig_x2 = min(w, int(round((bx + bw - f_pad_l) / f_scale)))
+                    orig_y2 = min(h, int(round((by + bh - f_pad_t) / f_scale)))
+                    cv2.rectangle(f_frame, (orig_x1, orig_y1), (orig_x2, orig_y2), (0, 255, 0), 2)
+                    cv2.putText(
+                        f_frame,
+                        f"person {d['score']:.2f}",
+                        (orig_x1, max(15, orig_y1 - 6)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0, 255, 0),
+                        1,
+                    )
+
+                hud = f"Tri-Core NPU | Res: {imgsz}x{imgsz} | E2E: {t_e2e:.1f}ms ({ema_fps:.1f} FPS) | Persons: {len(dets)}"
+                cv2.rectangle(f_frame, (0, 0), (w, 30), (0, 0, 0), -1)
+                cv2.putText(f_frame, hud, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+                if writer:
+                    writer.write(f_frame)
+
+                frames += 1
+                if frames % 30 == 0:
+                    print(f"[{frames} frames] {hud}")
+
+                if max_frames > 0 and frames >= max_frames:
+                    break
+    finally:
+        cap.release()
+        if writer:
+            writer.release()
+        npu_pool.release()
+
+    total_time = time.perf_counter() - t_start
+    print(f"\n[Camera Done] Processed {frames} frames in {total_time:.2f}s (Average: {frames/total_time:.2f} FPS)")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tri-Core NPU and big.LITTLE CPU Pipeline Runner for Orange Pi 5")
     parser.add_argument("--model", type=str, default="artifacts/models/yolo26n_cctv_rk3588_int8.rknn")
-    parser.add_argument("--images-dir", type=str, default="data/raw/roboflow_cctv_naxyo_v2/test/images")
-    parser.add_argument("--imgsz", type=int, default=416, help="Input image size (320, 416, 512, 640)")
+    parser.add_argument("--images-dir", type=str, default=None, help="Directory of test images (optional)")
+    parser.add_argument("--camera", type=str, default=None, help="Camera device index (e.g. 0) or RTSP stream / video file")
+    parser.add_argument("--imgsz", type=int, default=416, help="Input image size (320, 416, 512, 640, 768, 896)")
     parser.add_argument("--frames", type=int, default=150, help="Number of benchmark iterations")
     parser.add_argument("--conf", type=float, default=0.30)
     parser.add_argument("--iou", type=float, default=0.45)
+    parser.add_argument("--save-video", type=str, default=None, help="Path to save annotated video output")
     args = parser.parse_args()
 
-    benchmark_tri_core_pipeline(
-        rknn_model_path=args.model,
-        test_images_dir=args.images_dir,
-        imgsz=args.imgsz,
-        num_frames=args.frames,
-        conf_thres=args.conf,
-        iou_thres=args.iou,
-    )
+    if args.camera is not None:
+        run_camera_tri_core(
+            rknn_model_path=args.model,
+            camera_source=args.camera,
+            imgsz=args.imgsz,
+            max_frames=args.frames,
+            conf_thres=args.conf,
+            iou_thres=args.iou,
+            save_video=args.save_video,
+        )
+    else:
+        test_dir = args.images_dir or "data/raw/roboflow_cctv_naxyo_v2/test/images"
+        benchmark_tri_core_pipeline(
+            rknn_model_path=args.model,
+            test_images_dir=test_dir,
+            imgsz=args.imgsz,
+            num_frames=args.frames,
+            conf_thres=args.conf,
+            iou_thres=args.iou,
+        )

@@ -61,7 +61,7 @@ TOP_MODELS = {
     },
 }
 
-RESOLUTIONS = [320, 416, 512, 640]
+RESOLUTIONS = [320, 416, 512, 640, 768, 896]
 
 
 class MultiResCalibrationReader(CalibrationDataReader):
