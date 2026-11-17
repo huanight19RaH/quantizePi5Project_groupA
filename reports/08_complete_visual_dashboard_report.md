@@ -2,7 +2,7 @@
 
 Báo cáo này tổng hợp và trực quan hóa **100% chuỗi kết quả thực nghiệm xác thực** của dự án `Team_A` trên **11 biểu đồ chuyên sâu** (`reports/figures/*.png`), được sinh hoàn toàn tự động từ dữ liệu thô (`CSV / JSON / RKNN PERF_DETAIL / C++ microbench logs`) bằng script [`scripts/generate_charts.py`](../scripts/generate_charts.py).
 
-> Mục tiêu xuyên suốt: Tối ưu mô hình phát hiện người `YOLOv11n` (1 lớp `person`, đầu vào `416×416`) từ **PC calibration/quantization** sang **Orange Pi 5 (`RK3588S`)** — đạt độ chính xác tương đương/vượt chuẩn `ONNX FP32` đồng thời đẩy tốc độ từ **`23.5 FPS` (`42.46 ms`) lên `122.2 FPS` (`8.18 ms`, 1-Core Min Latency) và `385.4–385.7 FPS` (6-Worker 3-Core NPU Max Throughput)**, kiểm chứng chéo trên **`>16,200` ảnh thực tế** (`COCO Test_7500`, `COCO val2017 5,000`, và `Roboflow cctv-naxyo v2 3,737`).
+> Mục tiêu xuyên suốt: Tối ưu mô hình phát hiện người `YOLO26n` (`416×416`, 1 lớp `person`) từ **PC calibration/quantization** sang **Orange Pi 5 (`RK3588S`)** — đạt độ chính xác tương đương/vượt chuẩn `ONNX FP32` đồng thời đẩy tốc độ từ **`23.5 FPS` (`42.46 ms`) lên `122.2 FPS` (`8.18 ms`, 1-Core Min Latency) và `385.4–385.7 FPS` (6-Worker 3-Core NPU Max Throughput)**, kiểm chứng chéo trên **`>16,200` ảnh thực tế** (`COCO Test_7500`, `COCO val2017 5,000`, và `Roboflow cctv-naxyo v2 3,737`).
 
 ---
 
