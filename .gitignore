@@ -7,8 +7,9 @@ __pycache__/
 .venv/
 venv/
 
-# Large external COCO datasets / raw archives / binary caches (reproducible via scripts/prepare_datasets.py)
+# Large external COCO / Roboflow datasets / raw archives / binary caches (reproducible via scripts/prepare_*.py)
 datasets/coco/
+datasets/cctv-naxyo/
 datasets/*.zip
 datasets/*.tar*
 datasets/*.npy

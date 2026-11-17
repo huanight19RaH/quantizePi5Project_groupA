@@ -497,6 +497,81 @@ def plot_latency_anatomy(anat_json: Path, lat_csv: Path, out_path: Path) -> None
     plt.close(fig)
 
 
+def plot_cctv_naxyo(acc_csv: Path, lat_csv: Path, out_path: Path) -> None:
+    """Plot Roboflow cctv-naxyo v2 accuracy generalization across splits and 640x640 Before-vs-After FPS."""
+    df_a = pd.read_csv(acc_csv)
+    df_l = pd.read_csv(lat_csv)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15.5, 5.8), dpi=160)
+
+    variants = [
+        ("ONNX_FP32_Baseline", "ONNX FP32\n(Ref)"),
+        ("ONNX_INT8_Dynamic", "Dynamic\nINT8"),
+        ("ONNX_INT8_Static_FastCPU", "Static INT8\n(CPU Opt)"),
+        ("RKNN_FP16_Uncut_NPU", "RKNN FP16\nUncut"),
+        ("RKNN_INT8_6Head_MMSE_RGA_HW", "RKNN 6H\nMMSE+RGA"),
+        ("RKNN_INT8_6Head_Hybrid_RGA_HW", "RKNN 6H\nHybrid+RGA"),
+        ("RKNN_INT8_6Head_Normal_Q11", "RKNN 6H\nNormal+Q11"),
+        ("RKNN_INT8_6Head_Normal_RGA_HW", "RKNN 6H\nNormal+RGA*"),
+    ]
+    x = np.arange(len(variants))
+    bw = 0.25
+    for idx_s, (sp_key, sp_lbl, col) in enumerate([
+        ("all", "All (3,737 imgs)", "#2563eb"),
+        ("valid", "Valid (526 imgs)", "#f59e0b"),
+        ("test", "Test (151 imgs)", "#059669"),
+    ]):
+        vals = [float(df_a[(df_a["variant"] == vk) & (df_a["split"] == sp_key)]["mAP50"].iloc[0]) for vk, _ in variants]
+        off = (idx_s - 1.0) * bw
+        bars = ax1.bar(x + off, vals, width=bw, label=sp_lbl, color=col)
+        for b, v in zip(bars, vals):
+            ax1.text(b.get_x() + b.get_width() / 2, v + 0.004, f"{v:.3f}", ha="center", va="bottom", fontsize=6.2, rotation=45)
+    ax1.axhline(0.54355, color="#1d4ed8", linestyle="--", linewidth=0.9, alpha=0.65)
+    ax1.axhline(0.67081, color="#047857", linestyle=":", linewidth=1.0, alpha=0.65)
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([vl for _, vl in variants], fontsize=7.5)
+    ax1.set_ylim(0.42, 0.745)
+    ax1.set_ylabel("COCO mAP@50 (Zero-Shot on cctv-naxyo v2)")
+    ax1.set_title("cctv-naxyo Zero-Shot Accuracy (Unseen Overhead Surveillance)\nNote: Uncut RKNN INT8 = 0.000; Dynamic INT8 drops -11.8%!")
+    ax1.legend(loc="lower right", fontsize=8.0)
+    ax1.grid(axis="y", alpha=0.25)
+
+    lbl_map = {
+        "1_BEFORE_ONNX_FP32_ondemand": "BEFORE\nFP32",
+        "2_BEFORE_ONNX_INT8_Static_ondemand": "BEFORE\nINT8 Stat",
+        "3_CPU_ONNX_INT8_FastBlob_PinnedA76": "CPU Opt\nFastBlob",
+        "4_NPU_FP16_Uncut_Copy_1Core": "NPU FP16\n1Core",
+        "5_NPU_INT8_6Head_Copy_1Core": "NPU 6H\nCopy 1C",
+        "6_NPU_INT8_6Head_ZeroCopy_Q11_1Core": "NPU 6H\nZC+Q11 1C",
+        "7_NPU_INT8_6Head_ZeroCopy_RGA_1Core": "AFTER 1C\nZC+RGA*",
+        "8_NPU_INT8_6Head_ZeroCopy_Q11_3Workers": "NPU 6H\n3 Cores",
+        "9_NPU_INT8_6Head_ZeroCopy_RGA_6Workers": "AFTER Max\nRGA+6W*",
+    }
+    sub_l = df_l[df_l["config"].isin(lbl_map)].copy()
+    x2 = np.arange(len(sub_l))
+    cols2 = [
+        "#64748b" if c.startswith(("1_", "2_"))
+        else "#3b82f6" if c.startswith(("3_", "4_"))
+        else "#0ea5e9" if c.startswith(("5_", "6_"))
+        else "#059669"
+        for c in sub_l["config"]
+    ]
+    bars2 = ax2.bar(x2, sub_l["fps"], color=cols2)
+    for b, r in zip(bars2, sub_l.itertuples()):
+        tag = f"{r.fps:.1f}\n({r.mean_total_ms:.1f}ms)" if "Workers" not in r.config else f"{r.fps:.1f}\n({1000.0/r.fps:.2f}ms/f)"
+        ax2.text(b.get_x() + b.get_width() / 2, r.fps + 5.0, tag, ha="center", va="bottom", fontsize=7.0, fontweight="bold")
+    ax2.set_xticks(x2)
+    ax2.set_xticklabels([lbl_map[c] for c in sub_l["config"]], fontsize=7.5)
+    ax2.set_ylim(0, max(sub_l["fps"]) * 1.18)
+    ax2.set_ylabel("Sustained Throughput (FPS)")
+    ax2.set_title("Orange Pi 5 Speed on cctv-naxyo (640x640, 100% RGA Active)\n22.25 / 30.58 FPS -> 122.27 FPS (1C) -> 385.67 FPS (3-Core 6W)")
+    ax2.grid(axis="y", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close(fig)
+
+
 def main() -> None:
     fig_dir = REPO_ROOT / "reports" / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -521,6 +596,13 @@ def main() -> None:
             op5_dir / "latency_anatomy.json",
             op5_dir / "latency_fps_before_after.csv",
             fig_dir / "orangepi5_latency_component_anatomy.png",
+        )
+    cctv_dir = REPO_ROOT / "results" / "cctv_naxyo_orangepi5"
+    if (cctv_dir / "cctv_naxyo_accuracy.csv").exists():
+        plot_cctv_naxyo(
+            cctv_dir / "cctv_naxyo_accuracy.csv",
+            cctv_dir / "cctv_naxyo_latency_fps.csv",
+            fig_dir / "cctv_naxyo_benchmark.png",
         )
     print(f"[CHARTS] Generated verified figures in {fig_dir}")
 

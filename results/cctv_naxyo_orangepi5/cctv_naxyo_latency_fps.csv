@@ -1,0 +1,11 @@
+config,model,frames,wall_ms,fps,pre_ms,inf_ms,post_ms,mean_total_ms,p50_ms,p95_ms,p99_ms,rga_active
+1_BEFORE_ONNX_FP32_ondemand,model_fp32.onnx,200,8989.54,22.25,4.52,40.142,0.248,44.91,44.82,46.511,47.871,False
+2_BEFORE_ONNX_INT8_Static_ondemand,model_int8_static.onnx,200,6541.15,30.58,4.395,28.015,0.257,32.666,32.674,34.237,35.614,False
+3_CPU_ONNX_INT8_FastBlob_PinnedA76,model_int8_static.onnx,200,6111.26,32.73,2.904,27.361,0.252,30.518,30.426,31.395,33.25,False
+4_NPU_FP16_Uncut_Copy_1Core,model_fp16_uncut.rknn,500,9728.32,51.4,6.778,12.673,0.005,19.456,19.444,19.538,19.657,False
+5_NPU_INT8_6Head_Copy_1Core,model_int8_6head_normal.rknn,500,4659.48,107.31,2.101,7.208,0.008,9.317,9.314,9.362,9.405,False
+6_NPU_INT8_6Head_ZeroCopy_Q11_1Core,model_int8_6head_normal.rknn,1000,9173.68,109.01,2.055,7.109,0.01,9.174,9.17,9.194,9.239,False
+7_NPU_INT8_6Head_ZeroCopy_RGA_1Core,model_int8_6head_normal.rknn,1000,8178.73,122.27,1.075,7.093,0.01,8.178,8.176,8.252,8.292,True
+8_NPU_INT8_6Head_ZeroCopy_Q11_3Workers,model_int8_6head_normal.rknn,1500,4914.63,305.21,2.072,7.651,0.012,9.735,9.768,9.902,9.954,False
+9_NPU_INT8_6Head_ZeroCopy_RGA_6Workers,model_int8_6head_normal.rknn,2000,5185.78,385.67,1.166,14.216,0.012,15.394,15.519,15.66,15.815,True
+10_NPU_INT8_6Head_SCMode_RGA_6Workers,model_int8_6head_normal_sc.rknn,2000,5190.37,385.33,1.186,14.205,0.012,15.403,15.527,15.693,15.852,True

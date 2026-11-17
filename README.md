@@ -49,19 +49,24 @@ Team_A/
 │   ├── 03_orangepi5_format_fps_analysis.md
 │   ├── 04_orangepi5_max_hardware_utilization_report.md
 │   ├── 05_orangepi5_before_after_optimization_report.md
-│   └── figures/                          # 6 biểu đồ kiểm chứng từ CSV/JSON (4 offline + 2 Orange Pi 5)
+│   ├── 06_latency_anatomy_and_component_breakdown.md
+│   ├── 07_roboflow_cctv_naxyo_benchmark_report.md
+│   └── figures/                          # 8 biểu đồ kiểm chứng từ CSV/JSON (offline + Pi 5 + cctv-naxyo)
 ├── results/
-│   ├── orangepi5/                        # Kết quả thực đo Orange Pi 5: val2017 (5K), Before/After Ladder, 480p-1080p
+│   ├── orangepi5/                        # Kết quả thực đo Orange Pi 5: val2017 (5K), Before/After, Latency Anatomy
+│   ├── cctv_naxyo_orangepi5/             # Benchmark 3,737 ảnh Roboflow cctv-naxyo v2 trên Orange Pi 5
 │   ├── block_sensitivity_audit.csv       # Xếp hạng độ nhạy đơn khối cả 28 blocks của YOLO26n
 │   ├── full_7500_ablation_report.csv     # Bảng tổng hợp 15 cấu hình đánh giá đầy đủ 7,500 ảnh
 │   ├── full_7500_ablation_report.json
 │   └── stage*_metrics.json               # Dữ liệu JSON chi tiết từng giai đoạn (2A, 3A, 3B, 3C)
 ├── scripts/
 │   ├── prepare_datasets.py               # Tải Calib_200 hoặc tái tạo toàn bộ Test_7500 + GT JSON
+│   ├── prepare_cctv_naxyo.py             # Tải Roboflow cctv-naxyo v2 qua ROBOFLOW_API_KEY
 │   ├── export_fp32.py                    # Xuất ONNX FP32 & cắt 80 lớp -> 1 lớp "person" bit-exact
 │   ├── quantize_pipeline.py              # Pipeline tạo FP16, Dynamic INT8, Static INT8 Best (+ --ablation)
 │   ├── convert_rknn.py                   # Xuất bộ mô hình RKNN 6-Head Cut cho RK3588 NPU
 │   ├── benchmark_orangepi5.py            # Đánh giá 5,000 ảnh val2017 + thang đo Before/After trên Pi 5
+│   ├── benchmark_cctv_naxyo.py           # Benchmark 3,737 ảnh Roboflow cctv-naxyo + Latency/FPS trên Pi 5
 │   ├── check_npu_parity.py               # Kiểm tra parity đầu ra từng biến thể ONNX vs NPU Zero-Copy/RGA
 │   ├── tune_orangepi5.sh                 # Khóa governor performance A76 (2.26 GHz) & NPU (1.0 GHz)
 │   ├── audit_sensitivity.py              # Kiểm toán độ nhạy đơn khối bằng Calibration Cache
@@ -113,4 +118,5 @@ python scripts/evaluate_7500.py
 4. [Chiến Lược Khai Thác Tối Đa Phần Cứng Orange Pi 5 (`RK3588S`) Cho Mô Hình Hiện Tại](reports/04_orangepi5_max_hardware_utilization_report.md)
 5. [Báo Cáo Thực Nghiệm Before vs After Tối Ưu Inference Trên Orange Pi 5 (`5,000` val2017 + C++ Zero-Copy/RGA/3-Core NPU)](reports/05_orangepi5_before_after_optimization_report.md)
 6. [Giải Phẫu & Bóc Tách Toàn Bộ Thành Phần Cấu Tạo Nên Latency Trên Orange Pi 5](reports/06_latency_anatomy_and_component_breakdown.md)
-7. [Benchmark Report Tổng hợp (Chuẩn Hackathon)](benchmark_report.md)
+7. [Đánh Giá Thực Nghiệm Trên Bộ Dữ Liệu Roboflow `cctv-naxyo v2` (`3,737` Ảnh CCTV)](reports/07_roboflow_cctv_naxyo_benchmark_report.md)
+8. [Benchmark Report Tổng hợp (Chuẩn Hackathon)](benchmark_report.md)
