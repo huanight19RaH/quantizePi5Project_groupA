@@ -1,0 +1,23 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Large external COCO datasets / raw archives / binary caches (reproducible via scripts/prepare_datasets.py)
+datasets/coco/
+datasets/*.zip
+datasets/*.tar*
+datasets/*.npy
+datasets/*.npz
+*.cache
+augmented_data.db*
+
+# Temporary scratch / IDE files
+.DS_Store
+Thumbs.db
+*.tmp
+*.log

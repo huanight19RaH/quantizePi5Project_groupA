@@ -1,0 +1,80 @@
+# Team_A Configuration — YOLO26n Person Detection Quantization & Edge Deployment Study
+
+project:
+  name: "Team_A — YOLO26n Person Detection"
+  target_hardware: "Orange Pi 5 (RK3588S, 4x Cortex-A76 + 4x Cortex-A55, 3-core RKNPU v0.9.8 / librknnrt 2.5.0)"
+  task: "Single-class Person Detection (COCO category_id=1)"
+
+model:
+  base_checkpoint: "models/yolo26n.pt"
+  imgsz: 416
+  opset: 17
+  end2end: false
+  class_names:
+    - "person"
+  raw_output_shape: [1, 5, 3549]
+
+paths:
+  fp32_80cls_onnx: "models/ablation/yolo26n_80cls_fp32.onnx"
+  fp32_onnx: "models/model_fp32.onnx"
+  fp32_preprocessed_onnx: "models/ablation/model_fp32_pre.onnx"
+  fp16_onnx: "models/model_fp16.onnx"
+  int8_dynamic_onnx: "models/model_int8_dynamic.onnx"
+  int8_static_onnx: "models/model_int8_static.onnx"
+  int8_static_naive_onnx: "models/ablation/model_int8_static_naive.onnx"
+  calibration_dir: "calibration_data"
+  manifest_path: "datasets/dataset_manifest.json"
+  results_dir: "results"
+
+dataset:
+  seed: 20261117
+  test_total: 7500
+  val2017_official: 5000
+  matched_train2017: 2500
+  calib_200: 200
+  calib_400: 400
+  sha256_overlap_expected: 0
+
+quantization:
+  winner_variant: "INT8_HeadM0M1M2_Pct99995_C200"
+  format: "QDQ"
+  activation_type: "QUInt8"
+  weight_type: "QInt8"
+  per_channel: true
+  calibrate_method: "Percentile"
+  calibration_percentile: 99.995
+  symmetric_activation: false
+  calibration_samples: 200
+  # Sensitivity-guided mixed-precision FP32 preservation:
+  # - /model.0/ (Stem, block #3, 1.59 px MAE)
+  # - /model.1/ (Stage-1 Stem downsample, block #1, 5.23 px MAE)
+  # - /model.2/ (Stage-1 C3k2, block #2, 3.20 px MAE)
+  # - /model.23/ (Detect Head box/cls towers & anchor-to-box decode tail, 1.29 px MAE)
+  # - Top-level Resize, Upsample, Softmax ops (shape/range stability)
+  # NOTE: /model.10/attn and /model.22/attn (C2PSA) remain in INT8 (4x QLinearMatMul),
+  # reducing Q/DQ transitions from 3/8 to 1/6 and preserving 70.6% (72/102) INT8 Convs.
+  exclude_prefixes:
+    - "/model.0/"
+    - "/model.1/"
+    - "/model.2/"
+    - "/model.23/"
+  exclude_op_types:
+    - "Resize"
+    - "Upsample"
+    - "Softmax"
+
+evaluation:
+  coco_protocol:
+    conf_threshold: 0.001
+    iou_threshold: 0.65
+    max_det: 300
+  operating_point:
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    max_det: 300
+  probe_images: 256
+
+inference_defaults:
+  num_threads: 4
+  providers:
+    - "CPUExecutionProvider"
