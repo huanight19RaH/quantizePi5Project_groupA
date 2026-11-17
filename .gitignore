@@ -16,6 +16,16 @@ datasets/*.npz
 *.cache
 augmented_data.db*
 
+# Native build artifacts & intermediate RKNN exports (keep winning 6-head NPU binaries tracked)
+cpp/libyolo26_rk3588.so
+cpp/yolo26_edge_cli
+*.so
+models/rknn/model_fp16_uncut.rknn
+models/rknn/model_int8_uncut_normal.rknn
+models/rknn/model_int8_6head_kl.rknn
+models/rknn/model_int8_6head_mmse.rknn
+models/rknn/model_int8_6head_hybrid.rknn
+
 # Temporary scratch / IDE files
 .DS_Store
 Thumbs.db

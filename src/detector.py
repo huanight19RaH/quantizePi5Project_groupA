@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import platform
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -116,6 +118,8 @@ class PersonDetector:
         max_det: int = 300,
         num_threads: int = 4,
         providers: list[str] | None = None,
+        fast_mode: bool = True,
+        pin_a76: bool = False,
     ) -> None:
         self.model_path = Path(model_path)
         if not self.model_path.exists():
@@ -125,10 +129,15 @@ class PersonDetector:
         self.conf_threshold = float(conf_threshold)
         self.iou_threshold = float(iou_threshold)
         self.max_det = int(max_det)
+        self.fast_mode = bool(fast_mode)
+
+        if pin_a76 and platform.machine().lower() in {"aarch64", "arm64"} and hasattr(os, "sched_setaffinity"):
+            os.sched_setaffinity(0, {4, 5, 6, 7})
 
         sess_opts = ort.SessionOptions()
         sess_opts.intra_op_num_threads = int(num_threads)
         sess_opts.inter_op_num_threads = 1
+        sess_opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
         sess_opts.log_severity_level = 3
         sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
@@ -137,12 +146,28 @@ class PersonDetector:
         inp = self.session.get_inputs()[0]
         self.input_name = inp.name
         self.input_dtype = np.float16 if "float16" in str(inp.type) else np.float32
+        self._canvas_bgr = np.full((self.imgsz, self.imgsz, 3), 114, dtype=np.uint8)
 
     def preprocess(self, img_bgr: np.ndarray) -> tuple[np.ndarray, LetterboxMeta]:
         """Convert BGR frame into normalized `[1, 3, H, W]` ONNX input tensor plus letterbox metadata."""
-        rgb, meta = letterbox_bgr_to_rgb(img_bgr, imgsz=self.imgsz)
-        blob = (rgb.transpose(2, 0, 1).astype(np.float32) * np.float32(1.0 / 255.0)).astype(self.input_dtype)
-        return np.ascontiguousarray(blob[None, ...]), meta
+        if not self.fast_mode or self.input_dtype == np.float16:
+            rgb, meta = letterbox_bgr_to_rgb(img_bgr, imgsz=self.imgsz)
+            blob = (rgb.transpose(2, 0, 1).astype(np.float32) * np.float32(1.0 / 255.0)).astype(self.input_dtype)
+            return np.ascontiguousarray(blob[None, ...]), meta
+
+        oh, ow = img_bgr.shape[:2]
+        scale = min(self.imgsz / ow, self.imgsz / oh)
+        nw = int(round(ow * scale))
+        nh = int(round(oh * scale))
+        px = (self.imgsz - nw) // 2
+        py = (self.imgsz - nh) // 2
+
+        canvas = self._canvas_bgr
+        canvas.fill(114)
+        cv2.resize(img_bgr, (nw, nh), dst=canvas[py : py + nh, px : px + nw], interpolation=cv2.INTER_LINEAR)
+        blob = cv2.dnn.blobFromImage(canvas, scalefactor=1.0 / 255.0, swapRB=True, crop=False)
+        meta = LetterboxMeta(orig_w=ow, orig_h=oh, scale=float(scale), pad_x=int(px), pad_y=int(py), imgsz=self.imgsz)
+        return blob, meta
 
     def infer_raw_from_rgb_nhwc(self, rgb_nhwc: np.ndarray) -> np.ndarray:
         """Run raw inference on pre-letterboxed uint8 RGB HxWx3 image and return FP32 `[5, 3549]` tensor."""

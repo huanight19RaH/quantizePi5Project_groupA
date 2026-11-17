@@ -229,6 +229,140 @@ def plot_pareto_and_ablation(csv_path: Path, out_pareto: Path, out_prog: Path) -
     plt.close(fig)
 
 
+def plot_orangepi5_before_after(
+    lat_csv: Path,
+    acc_csv: Path,
+    res_csv: Path,
+    out_fps_lat: Path,
+    out_acc_res: Path,
+) -> None:
+    """Plot Orange Pi 5 Before-vs-After Latency/FPS progression, val2017 accuracy parity, and resolution scaling."""
+    df_l = pd.read_csv(lat_csv)
+    df_a = pd.read_csv(acc_csv)
+    df_r = pd.read_csv(res_csv)
+
+    # Chart 1: Throughput FPS ladder + Stacked Stage Latency (Single-Stream)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15.5, 6.0), dpi=160)
+
+    order_labels = {
+        "1_BEFORE_ONNX_FP32_ondemand": "BEFORE\nONNX FP32\n(ondemand)",
+        "2_BEFORE_ONNX_INT8_Static_ondemand": "BEFORE\nONNX INT8\n(ondemand)",
+        "4_CPU_ONNX_INT8_FastBlob_PinnedA76": "CPU Opt\nFastBlob+A76\n(perf)",
+        "5_NPU_FP16_Uncut_Copy_1Core": "NPU FP16\nUncut\n(1Core)",
+        "6_NPU_INT8_6Head_Copy_1Core": "NPU INT8\n6Head Copy\n(1Core)",
+        "8_NPU_INT8_6Head_ZeroCopy_NC1_1Core": "NPU 6Head\nZC+NC1\n(1Core)",
+        "10_NPU_INT8_6Head_ZeroCopy_NC1_RGA_1Core": "AFTER 1C\nZC+NC1+RGA\n(Min Lat)",
+        "11_NPU_INT8_6Head_ZeroCopy_NC1_3Workers": "NPU 6Head\n3 Cores\n(3 Workers)",
+        "13_NPU_INT8_6Head_ZeroCopy_RGA_6Workers": "AFTER Max\nRGA+3Cores\n(6 Workers)",
+    }
+    sub_l = df_l[df_l["config"].isin(order_labels)].copy()
+    x1 = np.arange(len(sub_l))
+    colors1 = [
+        "#64748b" if c.startswith(("1_", "2_"))
+        else "#3b82f6" if c.startswith(("4_", "5_"))
+        else "#0ea5e9" if c.startswith(("6_", "8_"))
+        else "#059669" if c.startswith("10_")
+        else "#047857"
+        for c in sub_l["config"]
+    ]
+    bars = ax1.bar(x1, sub_l["fps"], color=colors1)
+    for b, v in zip(bars, sub_l["fps"]):
+        ax1.text(b.get_x() + b.get_width() / 2, v + 6.0, f"{v:.1f}", ha="center", va="bottom", fontsize=8.0, fontweight="bold")
+    ax1.set_xticks(x1)
+    ax1.set_xticklabels([order_labels[c] for c in sub_l["config"]], fontsize=7.5)
+    ax1.set_ylim(0, max(sub_l["fps"]) * 1.15)
+    ax1.set_ylabel("Sustained Throughput (FPS)")
+    ax1.set_title("Orange Pi 5 Throughput: Before (CPU ONNX) vs After (NPU Zero-Copy + RGA + 3-Core)")
+    ax1.grid(axis="y", alpha=0.25)
+
+    single_keys = [
+        "1_BEFORE_ONNX_FP32_ondemand",
+        "2_BEFORE_ONNX_INT8_Static_ondemand",
+        "4_CPU_ONNX_INT8_FastBlob_PinnedA76",
+        "5_NPU_FP16_Uncut_Copy_1Core",
+        "6_NPU_INT8_6Head_Copy_1Core",
+        "8_NPU_INT8_6Head_ZeroCopy_NC1_1Core",
+        "10_NPU_INT8_6Head_ZeroCopy_NC1_RGA_1Core",
+    ]
+    sub_s = df_l[df_l["config"].isin(single_keys)].copy()
+    x2 = np.arange(len(sub_s))
+    ax2.bar(x2, sub_s["pre_ms"], label="Preprocess (Letterbox/RGB)", color="#f59e0b")
+    ax2.bar(x2, sub_s["inf_ms"], bottom=sub_s["pre_ms"], label="Inference (ORT / RKNN NPU)", color="#2563eb")
+    ax2.bar(x2, sub_s["post_ms"], bottom=sub_s["pre_ms"] + sub_s["inf_ms"], label="Postprocess (Decode + NMS)", color="#ef4444")
+    for i, r in enumerate(sub_s.itertuples()):
+        ax2.text(i, r.mean_total_ms + 0.7, f"{r.mean_total_ms:.2f} ms", ha="center", va="bottom", fontsize=8.0, fontweight="bold")
+    ax2.set_xticks(x2)
+    ax2.set_xticklabels([order_labels[c] for c in sub_s["config"]], fontsize=7.5)
+    ax2.set_ylim(0, max(sub_s["mean_total_ms"]) * 1.16)
+    ax2.set_ylabel("Single-Stream End-to-End Latency (ms)")
+    ax2.set_title("Single-Frame Stage Latency Breakdown (42.46 ms / 30.79 ms -> 8.18 ms)")
+    ax2.legend(loc="upper right", fontsize=8.0)
+    ax2.grid(axis="y", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_fps_lat)
+    plt.close(fig)
+
+    # Chart 2: Full 5,000-Image COCO val2017 Accuracy Parity + Resolution Preprocessing Tradeoff
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15.5, 5.8), dpi=160)
+    acc_map = {
+        "ONNX_FP32_Baseline": "ONNX FP32\n(Ref)",
+        "ONNX_INT8_Static_Before": "ONNX INT8\nBefore",
+        "ONNX_INT8_Static_FastCPU": "ONNX INT8\nFastCPU",
+        "RKNN_FP16_Uncut_NPU": "RKNN FP16\nUncut",
+        "RKNN_INT8_6Head_Hybrid_ZeroCopy_NC1": "RKNN 6H\nHybrid",
+        "RKNN_INT8_6Head_MMSE_ZeroCopy_NC1": "RKNN 6H\nMMSE",
+        "RKNN_INT8_6Head_Normal_ZeroCopy_NC1": "RKNN 6H\nNormal+Q11",
+        "RKNN_INT8_6Head_Normal_RGA_HW": "RKNN 6H\nNormal+RGA*",
+    }
+    sub_a = df_a[df_a["variant"].isin(acc_map)].copy()
+    xa = np.arange(len(sub_a))
+    w = 0.36
+    b1 = ax1.bar(xa - w / 2, sub_a["mAP50"], width=w, label="mAP@50 (left axis)", color="#2563eb")
+    b2 = ax1.bar(xa + w / 2, sub_a["op_f1"], width=w, label="F1 @ conf=0.25", color="#10b981")
+    ax1.axhline(0.69785, color="#1e3a8a", linestyle="--", linewidth=1.0, alpha=0.7)
+    ax1.axhline(0.69392, color="#f59e0b", linestyle=":", linewidth=1.1, alpha=0.85, label="ONNX INT8 mAP@50 (0.69392)")
+    for b, v in zip(b1, sub_a["mAP50"]):
+        ax1.text(b.get_x() + b.get_width() / 2, v + 0.0012, f"{v:.4f}", ha="center", va="bottom", fontsize=6.8, rotation=35)
+    for b, v in zip(b2, sub_a["op_f1"]):
+        ax1.text(b.get_x() + b.get_width() / 2, v + 0.0012, f"{v:.4f}", ha="center", va="bottom", fontsize=6.8, rotation=35)
+    ax1.set_xticks(xa)
+    ax1.set_xticklabels([acc_map[v] for v in sub_a["variant"]], fontsize=7.5)
+    ax1.set_ylim(0.640, 0.715)
+    ax1.set_ylabel("COCO val2017 Metric (5,000 Images)")
+    ax1.set_title("5,000-Image val2017 Accuracy Parity (Note: Uncut RKNN INT8 = 0.0000)")
+    ax1.legend(loc="lower left", fontsize=7.5)
+    ax1.grid(axis="y", alpha=0.25)
+
+    res_order = ["480p_640x480", "720p_1280x720", "1080p_1920x1080"]
+    res_labels = ["480p\n(640x480)", "720p\n(1280x720)", "1080p\n(1920x1080)"]
+    xr = np.arange(len(res_order))
+    cfg_styles = [
+        ("ONNX_FP32_LegacyCPU", "Before ONNX FP32 (CPU)", "#64748b"),
+        ("ONNX_INT8_FastCPU", "Optimized CPU ONNX INT8", "#3b82f6"),
+        ("NPU_INT8_6Head_Q11_1Core", "After NPU 1-Core + Q11 LUT", "#059669"),
+        ("NPU_INT8_6Head_RGA_1Core", "After NPU 1-Core + Virtual RGA", "#f59e0b"),
+    ]
+    bw = 0.19
+    for idx_c, (ckey, clbl, ccol) in enumerate(cfg_styles):
+        vals = [float(df_r[(df_r["resolution"] == r) & (df_r["config"] == ckey)]["fps"].iloc[0]) for r in res_order]
+        off = (idx_c - 1.5) * bw
+        bars_r = ax2.bar(xr + off, vals, width=bw, label=clbl, color=ccol)
+        for br, val in zip(bars_r, vals):
+            ax2.text(br.get_x() + br.get_width() / 2, val + 1.8, f"{val:.1f}", ha="center", va="bottom", fontsize=7.0)
+    ax2.set_xticks(xr)
+    ax2.set_xticklabels(res_labels, fontsize=8.5)
+    ax2.set_ylim(0, 148)
+    ax2.set_ylabel("Single-Stream FPS (1 Core)")
+    ax2.set_title("Camera Resolution Scaling: RGA Wins 480p (124.6 FPS), Q11 Wins 1080p (119.0 FPS)")
+    ax2.legend(loc="upper right", fontsize=7.5)
+    ax2.grid(axis="y", alpha=0.25)
+
+    plt.tight_layout()
+    plt.savefig(out_acc_res)
+    plt.close(fig)
+
+
 def main() -> None:
     fig_dir = REPO_ROOT / "reports" / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -239,7 +373,16 @@ def main() -> None:
         fig_dir / "pareto_size_vs_map50.png",
         fig_dir / "int8_optimization_progression.png",
     )
-    print(f"[CHARTS] Generated 4 verified figures in {fig_dir}")
+    op5_dir = REPO_ROOT / "results" / "orangepi5"
+    if (op5_dir / "latency_fps_before_after.csv").exists():
+        plot_orangepi5_before_after(
+            op5_dir / "latency_fps_before_after.csv",
+            op5_dir / "val2017_accuracy_parity.csv",
+            op5_dir / "resolution_before_after.csv",
+            fig_dir / "orangepi5_before_after_fps_latency.png",
+            fig_dir / "orangepi5_accuracy_and_resolution_parity.png",
+        )
+    print(f"[CHARTS] Generated verified figures in {fig_dir}")
 
 
 if __name__ == "__main__":

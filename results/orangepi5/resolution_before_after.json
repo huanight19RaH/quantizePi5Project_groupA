@@ -1,0 +1,182 @@
+[
+  {
+    "resolution": "480p_640x480",
+    "config": "ONNX_FP32_LegacyCPU",
+    "fps": 23.38,
+    "pre_ms": 3.896,
+    "inf_ms": 38.55,
+    "post_ms": 0.297,
+    "mean_total_ms": 42.744,
+    "rga_active": false
+  },
+  {
+    "resolution": "480p_640x480",
+    "config": "ONNX_INT8_FastCPU",
+    "fps": 33.07,
+    "pre_ms": 3.277,
+    "inf_ms": 26.636,
+    "post_ms": 0.29,
+    "mean_total_ms": 30.203,
+    "rga_active": false
+  },
+  {
+    "resolution": "480p_640x480",
+    "config": "NPU_INT8_6Head_Q11_1Core",
+    "fps": 115.17,
+    "pre_ms": 1.558,
+    "inf_ms": 7.114,
+    "post_ms": 0.009,
+    "mean_total_ms": 8.681,
+    "rga_active": false
+  },
+  {
+    "resolution": "480p_640x480",
+    "config": "NPU_INT8_6Head_RGA_1Core",
+    "fps": 124.64,
+    "pre_ms": 0.921,
+    "inf_ms": 7.093,
+    "post_ms": 0.009,
+    "mean_total_ms": 8.023,
+    "rga_active": true
+  },
+  {
+    "resolution": "480p_640x480",
+    "config": "NPU_INT8_6Head_Q11_6Workers",
+    "fps": 383.47,
+    "pre_ms": 1.606,
+    "inf_ms": 13.826,
+    "post_ms": 0.012,
+    "mean_total_ms": 15.444,
+    "rga_active": false
+  },
+  {
+    "resolution": "480p_640x480",
+    "config": "NPU_INT8_6Head_RGA_6Workers",
+    "fps": 385.62,
+    "pre_ms": 1.0,
+    "inf_ms": 14.364,
+    "post_ms": 0.011,
+    "mean_total_ms": 15.375,
+    "rga_active": true
+  },
+  {
+    "resolution": "720p_1280x720",
+    "config": "ONNX_FP32_LegacyCPU",
+    "fps": 23.98,
+    "pre_ms": 2.724,
+    "inf_ms": 38.649,
+    "post_ms": 0.293,
+    "mean_total_ms": 41.666,
+    "rga_active": false
+  },
+  {
+    "resolution": "720p_1280x720",
+    "config": "ONNX_INT8_FastCPU",
+    "fps": 34.36,
+    "pre_ms": 2.078,
+    "inf_ms": 26.695,
+    "post_ms": 0.297,
+    "mean_total_ms": 29.07,
+    "rga_active": false
+  },
+  {
+    "resolution": "720p_1280x720",
+    "config": "NPU_INT8_6Head_Q11_1Core",
+    "fps": 117.54,
+    "pre_ms": 1.302,
+    "inf_ms": 7.195,
+    "post_ms": 0.01,
+    "mean_total_ms": 8.507,
+    "rga_active": false
+  },
+  {
+    "resolution": "720p_1280x720",
+    "config": "NPU_INT8_6Head_RGA_1Core",
+    "fps": 109.02,
+    "pre_ms": 2.049,
+    "inf_ms": 7.113,
+    "post_ms": 0.01,
+    "mean_total_ms": 9.172,
+    "rga_active": true
+  },
+  {
+    "resolution": "720p_1280x720",
+    "config": "NPU_INT8_6Head_Q11_6Workers",
+    "fps": 383.57,
+    "pre_ms": 1.435,
+    "inf_ms": 14.002,
+    "post_ms": 0.013,
+    "mean_total_ms": 15.45,
+    "rga_active": false
+  },
+  {
+    "resolution": "720p_1280x720",
+    "config": "NPU_INT8_6Head_RGA_6Workers",
+    "fps": 379.44,
+    "pre_ms": 2.876,
+    "inf_ms": 12.723,
+    "post_ms": 0.012,
+    "mean_total_ms": 15.611,
+    "rga_active": true
+  },
+  {
+    "resolution": "1080p_1920x1080",
+    "config": "ONNX_FP32_LegacyCPU",
+    "fps": 23.91,
+    "pre_ms": 2.79,
+    "inf_ms": 38.7,
+    "post_ms": 0.294,
+    "mean_total_ms": 41.785,
+    "rga_active": false
+  },
+  {
+    "resolution": "1080p_1920x1080",
+    "config": "ONNX_INT8_FastCPU",
+    "fps": 34.08,
+    "pre_ms": 2.161,
+    "inf_ms": 26.84,
+    "post_ms": 0.305,
+    "mean_total_ms": 29.306,
+    "rga_active": false
+  },
+  {
+    "resolution": "1080p_1920x1080",
+    "config": "NPU_INT8_6Head_Q11_1Core",
+    "fps": 119.02,
+    "pre_ms": 1.262,
+    "inf_ms": 7.129,
+    "post_ms": 0.01,
+    "mean_total_ms": 8.401,
+    "rga_active": false
+  },
+  {
+    "resolution": "1080p_1920x1080",
+    "config": "NPU_INT8_6Head_RGA_1Core",
+    "fps": 90.51,
+    "pre_ms": 3.934,
+    "inf_ms": 7.104,
+    "post_ms": 0.01,
+    "mean_total_ms": 11.048,
+    "rga_active": true
+  },
+  {
+    "resolution": "1080p_1920x1080",
+    "config": "NPU_INT8_6Head_Q11_6Workers",
+    "fps": 382.1,
+    "pre_ms": 1.389,
+    "inf_ms": 14.105,
+    "post_ms": 0.014,
+    "mean_total_ms": 15.508,
+    "rga_active": false
+  },
+  {
+    "resolution": "1080p_1920x1080",
+    "config": "NPU_INT8_6Head_RGA_6Workers",
+    "fps": 360.7,
+    "pre_ms": 6.165,
+    "inf_ms": 10.237,
+    "post_ms": 0.013,
+    "mean_total_ms": 16.415,
+    "rga_active": true
+  }
+]

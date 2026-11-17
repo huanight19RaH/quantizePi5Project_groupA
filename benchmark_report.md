@@ -25,14 +25,20 @@
 
 ---
 
-## 3. Key Findings & Highest-FPS Format for Orange Pi 5
+## 3. Verified Orange Pi 5 (`RK3588S`) Hardware Results (`5,000` `val2017` + Before-vs-After Latency/FPS)
 
-1. **Highest-FPS Format Overall on Orange Pi 5 (`RK3588S`):**
-   - **`.rknn` INT8 (`w8a8` per-channel, 6-Head Cut before DFL/Sigmoid) on the 3-core NPU (`RKNPU v0.9.8` / `librknnrt 2.5.0`)**: Measured on `orangepi5` for YOLO26n `416×416` at **`90.77 FPS` (Python `CORE_0`) / `131.35 FPS` (C++ Zero-Copy `CORE_0`) / `376.10 FPS` (3× NPU) / `384.12–385.10 FPS` (6× NPU sustained)** while maintaining `mAP@50 = 0.7495` vs `0.7529` FP32 on CCTV test frames.
-2. **Highest-FPS Format Among Hackathon-Required `.onnx` CPU Models:**
-   - **`models/model_int8_static.onnx` (`QLinearConv` + `QLinearMatMul`, `4× Cortex-A76`)**: Measured on `orangepi5` CPU ORT at **`37.22 FPS`** (`26.86 ms` E2E) vs **`24.02 FPS`** (`41.63 ms` E2E) for `ONNX FP32` (+55% speedup), whereas `ONNX INT8 Dynamic` incurs runtime per-frame min/max overhead (even slower than FP32 on CPU ORT in our 7,500-image CPU benchmark: `533.7` vs `739.4 img/s`).
-3. **Full Reports & Reproduction:**
+1. **Before Optimization Baseline (`ondemand` governor, Python ONNX Runtime CPU):**
+   - `ONNX FP32` (`model_fp32.onnx`): **`42.461 ms`** (`23.53 FPS`), `5,000` `val2017` `mAP@50 = 0.69785`, `F1 = 0.6706`.
+   - `ONNX INT8 Static` (`model_int8_static.onnx`): **`30.786 ms`** (`32.44 FPS`), `5,000` `val2017` `mAP@50 = 0.69392`, `F1 = 0.6673`.
+   - With CPU-only optimization (`FastBlob + A76 Pin + performance`): **`30.066 ms`** (`33.22 FPS`) with bit-exact parity (`mAP@50 = 0.69392`).
+2. **After Optimization (`RK3588 NPU` + `6-Head Cut` + C++17 Zero-Copy `NC1HWC2` + Integer-Domain LUT + `RGA` + 3-Core NPU):**
+   - **Accuracy (`5,000` `val2017`):** `RKNN_INT8_6Head_Normal` achieves **`mAP@50 = 0.69734`** (`+0.00342` over `ONNX INT8 Static`, `99.93%` of `ONNX FP32`), **`AP_small = 0.17881`**, and **`F1 = 0.6737`** (`NegFP = 71` vs `82` FP32). With hardware RGA active (`RGA_HW`, `70%` of `Calib_200`), **`mAP@50 = 0.69744`** (`99.94%` of FP32), `F1 = 0.6733`. (Uncut `RKNN_INT8_Uncut` collapses to `0.00000`).
+   - **Single-Stream Min Latency (`1 Core`, `RGA` + Zero-Copy `NC1`):** **`8.179 ms`** (`122.24 FPS`, `p95 = 8.639 ms`) — **`3.77×`** faster than ONNX INT8 Before (`-73.4%` latency) and **`5.19×`** faster than ONNX FP32 Before (`-80.7%`); **`8.023 ms / 124.64 FPS`** at `640×480` and **`8.401 ms / 119.02 FPS`** at `1080p` via sparse Q11 LUT.
+   - **Maximum 3-Core NPU Throughput (`6 Workers`):** **`385.43 FPS`** (`2.59 ms/frame` amortized) — **`11.88×`** FPS vs ONNX INT8 Before and **`16.38×`** vs ONNX FP32 Before, verified with simultaneous 3-core NPU load (`Core0: 76%, Core1: 56%, Core2: 56%`, thermal `54.5–57.3°C`).
+3. **Full Reports & Raw Telemetry:**
    - Dataset & Distribution Audit: [reports/01_dataset_distribution_report.md](reports/01_dataset_distribution_report.md)
    - Sensitivity & INT8 Optimization Report: [reports/02_quantization_sensitivity_and_optimization_report.md](reports/02_quantization_sensitivity_and_optimization_report.md)
-   - Orange Pi 5 Highest-FPS Format Analysis: [reports/03_orangepi5_format_fps_analysis.md](reports/03_orangepi5_format_fps_analysis.md)
-   - Raw Metrics CSV/JSON: [results/full_7500_ablation_report.csv](results/full_7500_ablation_report.csv)
+   - Orange Pi 5 Format & Strategy Analysis: [reports/03_orangepi5_format_fps_analysis.md](reports/03_orangepi5_format_fps_analysis.md)
+   - Orange Pi 5 Hardware Utilization Blueprint: [reports/04_orangepi5_max_hardware_utilization_report.md](reports/04_orangepi5_max_hardware_utilization_report.md)
+   - **Empirical Orange Pi 5 Before-vs-After Report:** [reports/05_orangepi5_before_after_optimization_report.md](reports/05_orangepi5_before_after_optimization_report.md)
+   - Raw Metrics CSV/JSON: [results/full_7500_ablation_report.csv](results/full_7500_ablation_report.csv) | [results/orangepi5/val2017_accuracy_parity.csv](results/orangepi5/val2017_accuracy_parity.csv) | [results/orangepi5/latency_fps_before_after.csv](results/orangepi5/latency_fps_before_after.csv) | [results/orangepi5/resolution_before_after.csv](results/orangepi5/resolution_before_after.csv)
